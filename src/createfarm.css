@@ -1,0 +1,232 @@
+src/pages/CreateFarmPage.css
+.create-farm-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #f9fafb;
+    min-width: 100vh;
+}
+
+/* --- Header --- */
+.minimal-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 2rem;
+}
+.minimal-header .header-content {
+    display: flex;
+    align-items: center;
+    height: 70px;
+}
+.minimal-nav {
+    display: flex;
+    gap: 1.5rem;
+    margin-left: 3rem;
+}
+.minimal-nav a {
+    text-decoration: none;
+    color: #6b7280;
+    font-weight: 500;
+    padding: 0.5rem 0;
+    border-bottom: 2px solid transparent;
+}
+.minimal-nav a.active {
+    color: #4cdf20;
+    border-bottom-color: #4cdf20;
+}
+.profile-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #f3f4f6;
+    margin-left: auto;
+    border: 1px solid #e5e7eb;
+}
+
+/* --- Main Content --- */
+.create-farm-main {
+    flex-grow: 1;
+    padding: 2rem 4rem;
+    display: flex;
+    flex-direction: column;
+}
+.form-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 0;
+}
+.form-header p {
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+.input-row {
+    margin: 1.5rem 0;
+}
+.farm-name-input {
+    width: 400px;
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background-color: #fff;
+}
+.farm-name-input:focus {
+    outline: none;
+    border-color: #4cdf20;
+    box-shadow: 0 0 0 3px rgba(76, 223, 32, 0.2);
+}
+
+/* --- Map --- */
+.map-wrapper {
+    flex-grow: 1;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}
+.leaflet-container {
+    border-radius: 0.75rem;
+}
+.leaflet-draw-toolbar {
+    margin-top: 10px !important;
+    margin-right: 10px !important;
+}
+
+/* --- Footer --- */
+.create-farm-footer {
+    background-color: #fff;
+    padding: 1rem 4rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+.cancel-btn, .save-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    border: 1px solid #d1d5db;
+    cursor: pointer;
+}
+.cancel-btn {
+    background-color: #fff;
+    color: #374151;
+}
+.save-btn {
+    background-color: #4cdf20;
+    color: #111827;
+    border-color: transparent;
+}
+.save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.error-message-farm {
+    text-align: right;
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 1rem;
+}
+
+.create-farm-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #f9fafb;
+    min-height: 100vh;
+}
+
+/* --- Header --- */
+.minimal-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 2rem;
+    flex-shrink: 0; 
+}
+.minimal-header .header-content {
+    display: flex;
+    align-items: center;
+    height: 70px;
+}
+
+.create-farm-main {
+    flex-grow: 1;
+   
+    padding: 1.5rem 3rem; 
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevents scrollbars on the main container */
+}
+.form-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 0;
+}
+.form-header p {
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+/* --- Form Controls Wrapper with Search --- */
+.form-controls {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin: 1.5rem 0;
+    flex-shrink: 0; /* Prevents this section from shrinking */
+}
+.farm-name-input {
+    width: 350px;
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    color:black
+}
+.farm-name-input:focus {
+    outline: none;
+    border-color: #4cdf20;
+    box-shadow: 0 0 0 3px rgba(76, 223, 32, 0.2);
+}
+
+.search-form {
+    flex-grow: 1;
+    max-width: 400px;
+}
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-input-wrapper .material-symbols-outlined {
+    position: absolute;
+    left: 0.8rem;
+    color: #9ca3af;
+}
+.search-input {
+    width: 100%;
+    padding: 0.8rem 1rem 0.8rem 2.5rem; /* Left padding for icon */
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    color:black
+}
+.search-input:focus {
+    outline: none;
+    border-color: #4cdf20;
+    box-shadow: 0 0 0 3px rgba(76, 223, 32, 0.2);
+}
+
+/* --- Map --- */
+.map-wrapper {
+    /* 
+      CHANGED: This is the key change.
+      We remove flex-grow and set a specific, large height.
+      'vh' stands for "viewport height", so 75vh = 75% of the browser window's height.
+    */
+    height: 75vh;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}

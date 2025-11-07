@@ -1,0 +1,29 @@
+/* src/index.css */
+:root {
+  font-family: "Work Sans", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: #1f2937; /* Default dark text color */
+  background-color: #f6f8f6; /* Light background from your design */
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Add this to handle dark mode if you plan on it later */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f9fafb; /* Default light text color */
+    background-color: #152111; /* Dark background from your design */
+  }
+}
