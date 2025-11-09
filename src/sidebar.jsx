@@ -22,6 +22,7 @@ const Sidebar = () => {
     { path: "/home", icon: "home", label: "Dashboard" },
     { path: "/reports", icon: "analytics", label: "Reports" },
     { path: "/settings", icon: "settings", label: "Settings" },
+    { path: "/payments", icon: "payments", label: "Payments" },
   ];
 
   // Select nav items based on role
