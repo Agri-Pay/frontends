@@ -1,5 +1,5 @@
 // src/pages/CreateFarmPage.jsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, FeatureGroup } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
@@ -8,6 +8,7 @@ import "./createfarm.css";
 import { registerPolygonWithAgro } from "./agromonitoring";
 import Spinner from "./spinner";
 import { toast } from "react-hot-toast";
+import { useAuth } from "./useauth";
 
 // Minimal header for this page
 const MinimalHeader = () => (
@@ -51,6 +52,15 @@ const CreateFarmPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const mapRef = useRef(null);
+  const { role, loading: authLoading } = useAuth();
+
+  // Role protection: Only farmers can create farms
+  useEffect(() => {
+    if (!authLoading && role === "admin") {
+      toast.error("Admins cannot create farms");
+      navigate("/admin-dashboard");
+    }
+  }, [role, authLoading, navigate]);
   const handleCreated = (e) => {
     const { layerType, layer } = e;
     if (layerType === "polygon") {

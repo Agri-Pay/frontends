@@ -8,6 +8,7 @@ import { polygon as turfPolygon } from "@turf/helpers";
 import "./farms.css";
 import Spinner from "./spinner";
 import { toast } from "react-hot-toast";
+import { useAuth } from "./useauth";
 
 // This is the new, self-contained Farm Card component
 const FarmCard = ({ farm }) => {
@@ -90,6 +91,7 @@ const FarmsPage = () => {
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { role } = useAuth();
 
   useEffect(() => {
     const fetchFarms = async () => {
@@ -130,17 +132,19 @@ const FarmsPage = () => {
           {farms.map((farm) => (
             <FarmCard key={farm.id} farm={farm} />
           ))}
-          {/* "Add New Farm" card */}
-          <div
-            className="add-farm-card"
-            onClick={() => navigate("/create-farm")}
-          >
-            <div className="add-icon-circle">
-              <span className="material-symbols-outlined">add</span>
+          {/* "Add New Farm" card - Only visible to farmers */}
+          {role === "farmer" && (
+            <div
+              className="add-farm-card"
+              onClick={() => navigate("/create-farm")}
+            >
+              <div className="add-icon-circle">
+                <span className="material-symbols-outlined">add</span>
+              </div>
+              <h3>Have another property?</h3>
+              <button className="add-farm-cta">Add a New Farm</button>
             </div>
-            <h3>Have another property?</h3>
-            <button className="add-farm-cta">Add a New Farm</button>
-          </div>
+          )}
         </div>
       </main>
     </div>

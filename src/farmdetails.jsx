@@ -230,6 +230,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "./createclient";
 import Sidebar from "./sidebar";
 import Modal from "./modal";
+import ConfirmDialog from "./confirmdialog";
 import {
   getWeatherForPolygon,
   getSoilDataForPolygon,
@@ -303,6 +304,10 @@ const FarmDetailsPage = () => {
   // Modal state for starting a cycle
   const [isStartCycleModalOpen, setIsStartCycleModalOpen] = useState(false);
   const [selectedCropId, setSelectedCropId] = useState("");
+  
+  // Confirmation dialog state for milestone verification
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [milestoneToVerify, setMilestoneToVerify] = useState(null);
 
   useEffect(() => {
     const fetchFarmData = async () => {
@@ -359,22 +364,40 @@ const FarmDetailsPage = () => {
           ]);
 
           // Assign data if the request was successful
-          if (results[0].status === "fulfilled") setWeather(results[0].value);
-          if (results[1].status === "fulfilled") setSoil(results[1].value);
-          if (results[2].status === "fulfilled")
+          if (results[0].status === "fulfilled") {
+            console.log("Weather data fetched successfully");
+            setWeather(results[0].value);
+          }
+          if (results[1].status === "fulfilled") {
+            console.log("Soil data fetched successfully");
+            setSoil(results[1].value);
+          }
+          if (results[2].status === "fulfilled") {
+            console.log("NDVI data fetched successfully");
             setNdviHistory(results[2].value);
-          if (results[3].status === "fulfilled")
+          }
+          if (results[3].status === "fulfilled") {
+            console.log("Satellite images fetched successfully");
             setLatestImage(results[3].value);
+          }
 
           // Log any errors without crashing the page
-          results.forEach((result) => {
+          const failedRequests = [];
+          results.forEach((result, index) => {
             if (result.status === "rejected") {
+              const apiNames = ["Weather", "Soil", "NDVI", "Satellite Images"];
               console.error(
-                "Failed to fetch some AgroMonitoring data:",
+                `Failed to fetch ${apiNames[index]} data:`,
                 result.reason
               );
+              failedRequests.push(apiNames[index]);
             }
           });
+          
+          // Show toast notification if some API calls failed
+          if (failedRequests.length > 0) {
+            toast.error(`Failed to fetch: ${failedRequests.join(", ")}`);
+          }
         } else {
           // If the farm isn't registered with AgroMonitoring, we can't fetch this data.
           console.warn(
@@ -397,23 +420,31 @@ const FarmDetailsPage = () => {
     if (!latestImage) return null;
     return imageType === "tci" ? latestImage.image.tci : latestImage.image.ndvi;
   };
-  const handleVerificationChange = async (milestone, newStatus) => {
+  const handleApproveClick = (milestone) => {
+    setMilestoneToVerify(milestone);
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmApprove = async () => {
+    if (!milestoneToVerify) return;
+
     const { error } = await supabase
       .from("cycle_milestones")
-      .update({ is_verified: newStatus })
-      .eq("id", milestone.id);
+      .update({ is_verified: true })
+      .eq("id", milestoneToVerify.id);
 
     if (error) {
-      // alert("Error updating verification: " + error.message);
       toast.error("Error updating verification");
     } else {
+      toast.success("Milestone approved successfully");
       // Update local state for instant UI feedback
       setCycleMilestones((prev) =>
         prev.map((m) =>
-          m.id === milestone.id ? { ...m, is_verified: newStatus } : m
+          m.id === milestoneToVerify.id ? { ...m, is_verified: true } : m
         )
       );
     }
+    setMilestoneToVerify(null);
   };
   const handleStartCycle = async () => {
     if (!selectedCropId) {
@@ -537,17 +568,20 @@ const FarmDetailsPage = () => {
                         >
                           {ms.status}
                         </span>
-                        <button
-                          onClick={() =>
-                            handleVerificationChange(ms, !ms.is_verified)
-                          }
-                          className={`verify-btn ${
-                            ms.is_verified ? "unverify" : "verify"
-                          }`}
-                          disabled={ms.status !== "Completed"} // Only allow verification if farmer marked it complete
-                        >
-                          {ms.is_verified ? "Un-verify" : "Verify"}
-                        </button>
+                        {!ms.is_verified ? (
+                          <button
+                            onClick={() => handleApproveClick(ms)}
+                            className="verify-btn verify"
+                            disabled={ms.status !== "Completed"} // Only allow verification if farmer marked it complete
+                          >
+                            Verify
+                          </button>
+                        ) : (
+                          <span className="verified-locked">
+                            <span className="material-symbols-outlined">lock</span>
+                            Verified (Locked)
+                          </span>
+                        )}
                       </>
                     ) : (
                       // UI for Farmer
@@ -598,7 +632,7 @@ const FarmDetailsPage = () => {
           {/* Weather Card */}
           <div className="data-card weather-card">
             <h3>Live Weather</h3>
-            {weather ? (
+            {weather && weather.length > 0 ? (
               <div className="weather-content">
                 <img
                   src={`http://openweathermap.org/img/wn/${weather[0].weather[0].icon}@4x.png`}
@@ -613,8 +647,12 @@ const FarmDetailsPage = () => {
                   </p>
                 </div>
               </div>
-            ) : (
+            ) : loading ? (
               <p>Loading weather...</p>
+            ) : (
+              <p style={{ color: "#64748b", fontSize: "0.875rem" }}>
+                Weather data unavailable. Check console for details.
+              </p>
             )}
           </div>
 
@@ -646,8 +684,12 @@ const FarmDetailsPage = () => {
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : loading ? (
               <p>Loading soil data...</p>
+            ) : (
+              <p style={{ color: "#64748b", fontSize: "0.875rem" }}>
+                Soil data unavailable. Check console for details.
+              </p>
             )}
           </div>
 
@@ -661,8 +703,12 @@ const FarmDetailsPage = () => {
               <div className="chart-container">
                 <NdviChart data={ndviHistory} />
               </div>
+            ) : loading ? (
+              <p>Loading NDVI data...</p>
             ) : (
-              <p>No NDVI data available.</p>
+              <p style={{ color: "#64748b", fontSize: "0.875rem" }}>
+                No NDVI data available. Check console for details.
+              </p>
             )}
           </div>
 
@@ -727,6 +773,53 @@ const FarmDetailsPage = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => {
+          setShowConfirmDialog(false);
+          setMilestoneToVerify(null);
+        }}
+        onConfirm={handleConfirmApprove}
+        type="success"
+        title="Approve Milestone Verification?"
+        confirmText="Approve & Release Payment"
+        cancelText="Cancel"
+      >
+        {milestoneToVerify && (
+          <div className="confirm-dialog-details">
+            <p className="confirm-milestone-name">
+              <strong>{milestoneToVerify.milestone_templates?.name || "Milestone"}</strong>
+              {" - "}
+              {milestoneToVerify.crop_cycles?.crops?.name || "Crop"}
+            </p>
+            <div className="confirm-warning-box">
+              <span className="material-symbols-outlined">info</span>
+              <div>
+                <strong className="confirm-warning-title">Warning: This action is irreversible</strong>
+                <p className="confirm-warning-text">
+                  Once approved, payment will be released to the farmer via blockchain smart contract. 
+                  This transaction cannot be reversed or cancelled.
+                </p>
+              </div>
+            </div>
+            <div className="confirm-checklist">
+              <label className="confirm-checkbox">
+                <input type="checkbox" required />
+                I have reviewed the milestone completion evidence
+              </label>
+              <label className="confirm-checkbox">
+                <input type="checkbox" required />
+                I have verified the agricultural data and metrics
+              </label>
+              <label className="confirm-checkbox">
+                <input type="checkbox" required />
+                I confirm this milestone meets all required criteria
+              </label>
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
     </div>
   );
 };

@@ -66,8 +66,15 @@ export const getWeatherForPolygon = async (polyId) => {
   const response = await fetch(
     `${API_BASE_URL}/weather/forecast?polyid=${polyId}&appid=${API_KEY}`
   );
-  if (!response.ok) throw new Error("Failed to fetch weather data.");
-  return await response.json();
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Weather API Error:", response.status, errorText);
+    throw new Error(`Failed to fetch weather data: ${response.status}`);
+  }
+  const data = await response.json();
+  console.log("Weather API Response:", data);
+  // The forecast API returns { list: [...] }, we need to return the list
+  return data.list || data;
 };
 
 /**
@@ -78,8 +85,14 @@ export const getSoilDataForPolygon = async (polyId) => {
   const response = await fetch(
     `${API_BASE_URL}/soil?polyid=${polyId}&appid=${API_KEY}`
   );
-  if (!response.ok) throw new Error("Failed to fetch soil data.");
-  return await response.json();
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Soil API Error:", response.status, errorText);
+    throw new Error(`Failed to fetch soil data: ${response.status}`);
+  }
+  const data = await response.json();
+  console.log("Soil API Response:", data);
+  return data;
 };
 
 /**
@@ -92,8 +105,14 @@ export const getNdviHistoryForPolygon = async (polyId) => {
   const response = await fetch(
     `${API_BASE_URL}/ndvi/history?polyid=${polyId}&start=${thirtyDaysAgo}&end=${now}&appid=${API_KEY}`
   );
-  if (!response.ok) throw new Error("Failed to fetch NDVI history.");
-  return await response.json();
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("NDVI API Error:", response.status, errorText);
+    throw new Error(`Failed to fetch NDVI history: ${response.status}`);
+  }
+  const data = await response.json();
+  console.log("NDVI API Response:", data);
+  return data;
 };
 
 /**
@@ -107,8 +126,13 @@ export const searchSatelliteImages = async (polyId) => {
   const response = await fetch(
     `${API_BASE_URL}/image/search?start=${thirtyDaysAgo}&end=${now}&polyid=${polyId}&appid=${API_KEY}`
   );
-  if (!response.ok) throw new Error("Failed to search for satellite images.");
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Satellite Image API Error:", response.status, errorText);
+    throw new Error(`Failed to search for satellite images: ${response.status}`);
+  }
   const images = await response.json();
+  console.log("Satellite Images API Response:", images);
   // Return the most recent available image metadata, if any
   return images.length > 0 ? images[0] : null;
 };

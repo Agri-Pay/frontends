@@ -8,6 +8,8 @@ import { supabase } from "./createclient";
 import "./kmlpage.css";
 // CORRECT
 import { kml } from "@tmcw/togeojson";
+import { toast } from "react-hot-toast";
+import { useAuth } from "./useauth";
 // Reusable header from CreateFarmPage
 const MinimalHeader = () => (
   <header className="minimal-header">
@@ -60,6 +62,15 @@ const UploadKmlPage = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { role, loading: authLoading } = useAuth();
+
+  // Role protection: Only farmers can upload KML files
+  useEffect(() => {
+    if (!authLoading && role === "admin") {
+      toast.error("Admins cannot create farms");
+      navigate("/admin-dashboard");
+    }
+  }, [role, authLoading, navigate]);
 
   const onDrop = useCallback((acceptedFiles) => {
     setError("");

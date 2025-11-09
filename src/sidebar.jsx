@@ -3,16 +3,29 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import "./sidebar.css";
 import Notifications from "./notifications";
+import { useAuth } from "./useauth";
 
 const Sidebar = () => {
   const location = useLocation();
-  const navItems = [
+  const { role } = useAuth();
+
+  // Define navigation items based on user role
+  const farmerNavItems = [
     { path: "/home", icon: "home", label: "Dashboard" },
     { path: "/farms", icon: "grass", label: "Farms" },
     { path: "/payments", icon: "payments", label: "Payments" },
     { path: "/reports", icon: "analytics", label: "Reports" },
     { path: "/settings", icon: "settings", label: "Settings" },
   ];
+
+  const adminNavItems = [
+    { path: "/home", icon: "home", label: "Dashboard" },
+    { path: "/reports", icon: "analytics", label: "Reports" },
+    { path: "/settings", icon: "settings", label: "Settings" },
+  ];
+
+  // Select nav items based on role
+  const navItems = role === "admin" ? adminNavItems : farmerNavItems;
 
   return (
     <aside className="sidebar">

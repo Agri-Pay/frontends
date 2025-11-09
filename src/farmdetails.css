@@ -419,3 +419,90 @@
     color: #94a3b8;
     cursor: not-allowed;
 }
+
+/* Verified and locked indicator */
+.verified-locked {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: #dcfce7;
+    color: #166534;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.verified-locked .material-symbols-outlined {
+    font-size: 1.125rem;
+    color: #16a34a;
+}
+
+/* Confirmation Dialog Custom Content */
+.confirm-dialog-details {
+    text-align: left;
+}
+
+.confirm-milestone-name {
+    font-size: 1rem;
+    color: #1e293b;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.confirm-warning-box {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: #fef3c7;
+    border: 1px solid #fde68a;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.confirm-warning-box .material-symbols-outlined {
+    color: #d97706;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.confirm-warning-title {
+    font-weight: 600;
+    color: #92400e;
+    margin: 0 0 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.confirm-warning-text {
+    font-size: 0.875rem;
+    color: #78350f;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.confirm-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.confirm-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.confirm-checkbox input[type="checkbox"] {
+    margin-top: 0.125rem;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #22c55e;
+}
+
+.confirm-checkbox:hover {
+    color: #1e293b;
+}

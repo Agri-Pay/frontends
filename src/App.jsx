@@ -11,6 +11,11 @@ import FarmsPage from "./farms";
 import Dashboard from "./dashboard";
 import { Toaster } from "react-hot-toast";
 import AdminDashboardPage from "./admindash";
+import ReportsPage from "./reports";
+import FarmReportsPage from "./farmreports";
+import PaymentsPage from "./payments";
+import FarmPaymentsPage from "./farmpayments";
+
 function App() {
   return (
     <>
@@ -75,7 +80,7 @@ function App() {
           <Route
             path="/create-farm"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={["farmer"]}>
                 <CreateFarmPage />
               </ProtectedRoute>
             }
@@ -83,7 +88,7 @@ function App() {
           <Route
             path="/upload-kml"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={["farmer"]}>
                 <UploadKmlPage />
               </ProtectedRoute>
             }
@@ -104,6 +109,38 @@ function App() {
             element={
               <ProtectedRoute>
                 <FarmsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <ReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports/:farmId"
+            element={
+              <ProtectedRoute>
+                <FarmReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payments"
+            element={
+              <ProtectedRoute>
+                <PaymentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payments/:farmId"
+            element={
+              <ProtectedRoute>
+                <FarmPaymentsPage />
               </ProtectedRoute>
             }
           />

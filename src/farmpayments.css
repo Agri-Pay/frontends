@@ -1,0 +1,501 @@
+/* src/pages/FarmPaymentsPage.css - Matching farmreports.css patterns */
+
+/* Main Container */
+.farm-payments-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f8fafc;
+}
+
+.farm-payments-main {
+    flex-grow: 1;
+    padding: 2.5rem 3rem;
+}
+
+/* Page Title Section */
+.page-title-section {
+    margin-bottom: 2.5rem;
+}
+
+.title-with-back {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    background-color: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-top: 0.25rem;
+}
+
+.back-btn:hover {
+    background-color: #e2e8f0;
+}
+
+.back-btn .material-symbols-outlined {
+    font-size: 1.5rem;
+    color: #64748b;
+}
+
+.farm-name-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin: 0;
+    color: #1e293b;
+}
+
+.farm-subtitle {
+    font-size: 1.125rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+/* Error State */
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    background-color: #fff;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.error-state .material-symbols-outlined {
+    font-size: 4rem;
+    color: #ef4444;
+    margin-bottom: 1rem;
+}
+
+.error-state p {
+    font-size: 1.125rem;
+    color: #64748b;
+    margin-bottom: 1.5rem;
+}
+
+.back-to-payments-btn {
+    padding: 0.75rem 1.5rem;
+    background-color: #22c55e;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.back-to-payments-btn:hover {
+    background-color: #16a34a;
+}
+
+/* Empty State */
+.empty-payments-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    background-color: #fff;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.empty-payments-state .material-symbols-outlined {
+    font-size: 5rem;
+    color: #cbd5e1;
+    margin-bottom: 1.5rem;
+}
+
+.empty-payments-state h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.75rem 0;
+}
+
+.empty-payments-state p {
+    font-size: 1rem;
+    color: #64748b;
+    margin: 0 0 1.5rem 0;
+    max-width: 500px;
+}
+
+/* Crop Cycles Container */
+.crop-cycles-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Crop Cycle Payment Section */
+.crop-cycle-payment-section {
+    background-color: #fff;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+/* Cycle Header */
+.cycle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.cycle-header:hover {
+    background-color: #f8fafc;
+}
+
+.cycle-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.cycle-info .expand-icon {
+    font-size: 1.5rem;
+    color: #64748b;
+    transition: transform 0.2s;
+}
+
+.cycle-info .crop-icon {
+    font-size: 2rem;
+    color: #22c55e;
+}
+
+.cycle-info h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.cycle-dates {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0.25rem 0 0 0;
+}
+
+/* Cycle Summary */
+.cycle-summary {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.cycle-status-badge {
+    padding: 0.375rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.cycle-status-badge.active {
+    background-color: #dbeafe;
+    color: #2563eb;
+}
+
+.cycle-status-badge.completed {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+.cycle-earnings {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cycle-earnings .earnings-label {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.cycle-earnings .earnings-amount {
+    font-size: 1.125rem;
+    color: #15803d;
+    font-weight: 700;
+}
+
+.cycle-count {
+    font-size: 0.875rem;
+    color: #64748b;
+    background-color: #f1f5f9;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+}
+
+/* Milestones Payment List */
+.milestones-payment-list {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.no-milestones-message {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    background-color: #f8fafc;
+    border-radius: 0.5rem;
+    color: #64748b;
+}
+
+.no-milestones-message .material-symbols-outlined {
+    font-size: 1.5rem;
+}
+
+/* Payment Milestone Item */
+.payment-milestone-item {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.payment-milestone-item:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Milestone Header Row */
+.milestone-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.milestone-info h4 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.25rem 0;
+}
+
+.milestone-date {
+    font-size: 0.875rem;
+    color: #64748b;
+}
+
+.milestone-payment-amount .amount-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #15803d;
+}
+
+/* Milestone Status Row */
+.milestone-status-row {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1rem;
+}
+
+.status-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-label {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status-badge .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+/* Approval Status Badges */
+.status-badge.verified {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+.status-badge.pending {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+/* Payment Status Badges */
+.status-badge.payment-paid {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+.status-badge.payment-pending {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.status-badge.payment-processing {
+    background-color: #dbeafe;
+    color: #2563eb;
+}
+
+.status-badge.payment-failed {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+/* Milestone Actions Row */
+.milestone-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background-color: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    color: #475569;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    background-color: #e2e8f0;
+    border-color: #94a3b8;
+    color: #1e293b;
+}
+
+.action-btn .material-symbols-outlined {
+    font-size: 1.125rem;
+}
+
+.action-btn.view-report {
+    background-color: #22c55e;
+    border-color: #22c55e;
+    color: white;
+}
+
+.action-btn.view-report:hover {
+    background-color: #16a34a;
+    border-color: #16a34a;
+}
+
+.action-btn.etherscan-link {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+.action-btn.etherscan-link:hover {
+    background-color: #2563eb;
+    border-color: #2563eb;
+}
+
+/* Transaction Status Messages */
+.transaction-pending,
+.payment-failed-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.transaction-pending {
+    background-color: #dbeafe;
+    color: #2563eb;
+}
+
+.payment-failed-info {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.transaction-pending .material-symbols-outlined.rotating {
+    animation: rotate 1.5s linear infinite;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .farm-payments-main {
+        padding: 1.5rem 1rem;
+    }
+
+    .farm-name-title {
+        font-size: 2rem;
+    }
+
+    .cycle-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .cycle-summary {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .milestone-header-row {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .milestone-status-row {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .milestone-actions-row {
+        flex-direction: column;
+    }
+
+    .action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

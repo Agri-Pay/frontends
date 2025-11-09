@@ -25,6 +25,7 @@ const DashboardPage = () => {
     upcoming: [],
     progress: 0,
   });
+  const [payments, setPayments] = useState([]);
 
   // useEffect to fetch data when the component mounts
   // useEffect(() => {
@@ -183,7 +184,7 @@ const DashboardPage = () => {
         const userId = session.user.id;
 
         // --- Fetch all data in parallel ---
-        const [profileRes, farmsRes, milestonesRes] = await Promise.all([
+        const [profileRes, farmsRes, milestonesRes, paymentsRes] = await Promise.all([
           supabase
             .from("profiles")
             .select("full_name")
@@ -202,6 +203,21 @@ const DashboardPage = () => {
             )
             .eq("crop_cycles.user_id", userId) // <-- THE CRITICAL FIX
             .eq("crop_cycles.is_active", true),
+          supabase
+            .from("cycle_milestones")
+            .select(
+              `
+                            id,
+                            updated_at,
+                            crop_cycles!inner(
+                              farms(name)
+                            )
+                        `
+            )
+            .eq("crop_cycles.user_id", userId)
+            .eq("is_verified", true)
+            .order("updated_at", { ascending: false })
+            .limit(5),
         ]);
 
         // Process Profile
@@ -242,6 +258,12 @@ const DashboardPage = () => {
           const progress = total > 0 ? (completed / total) * 100 : 0;
           const upcoming = milestones.filter((m) => m.status !== "Completed");
           setMilestoneSummary({ upcoming, progress: progress.toFixed(0) });
+        }
+
+        // Process Payments
+        if (paymentsRes.error) throw paymentsRes.error;
+        if (paymentsRes.data) {
+          setPayments(paymentsRes.data);
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error.message);
@@ -486,7 +508,7 @@ const DashboardPage = () => {
               <ul>
                 {milestoneSummary.upcoming.slice(0, 5).map((m) => (
                   <li key={m.id}>
-                    {m.crop_cycles.farms.name} - Milestone Name Here
+                    {m.crop_cycles.farms.name} - {m.milestone_templates?.name || "Unnamed Milestone"}
                   </li>
                 ))}
               </ul>
@@ -503,20 +525,32 @@ const DashboardPage = () => {
               <thead>
                 <tr>
                   <th>Farm</th>
-                  <th>Payment Amount</th>
+                  <th>Milestone</th>
                   <th>Status</th>
-                  <th>Next Payment Date</th>
+                  <th>Payment Date</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Green Valley</td>
-                  <td>$5,000</td>
-                  <td>
-                    <span className="status-pill paid">Paid</span>
-                  </td>
-                  <td>2024-07-15</td>
-                </tr>
+                {payments.length > 0 ? (
+                  payments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>{payment.crop_cycles?.farms?.name || "N/A"}</td>
+                      <td>Milestone Verified</td>
+                      <td>
+                        <span className="status-pill paid">Paid</span>
+                      </td>
+                      <td>
+                        {new Date(payment.updated_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: "center" }}>
+                      No payments processed yet
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
