@@ -10,6 +10,8 @@ import "./kmlpage.css";
 import { kml } from "@tmcw/togeojson";
 import { toast } from "react-hot-toast";
 import { useAuth } from "./useauth";
+import { registerPolygonWithAgro } from "./agromonitoring";
+import { extractPolygonFromFeatureCollection, geoJSONToLeaflet } from "./utils/geometryHelpers";
 // Reusable header from CreateFarmPage
 const MinimalHeader = () => (
   <header className="minimal-header">
@@ -121,13 +123,12 @@ const UploadKmlPage = () => {
     // For now, we'll use the KML filename.
     const farmName = kmlFile.name.replace(".kml", "");
 
-    // Extract coordinates in the same format as the drawing tool for consistency
-    const coordinates = geoJsonData.features[0].geometry.coordinates[0].map(
-      (coord) => ({
-        lng: coord[0],
-        lat: coord[1],
-      })
-    );
+    // Extract polygon geometry from the KML-parsed GeoJSON
+    const polygonGeometry = extractPolygonFromFeatureCollection(geoJsonData);
+    if (!polygonGeometry) {
+      setError("No polygon boundary found in the KML file.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -136,17 +137,43 @@ const UploadKmlPage = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("User not found.");
 
-      const { error } = await supabase.from("farms").insert([
+      // 1. Create farm using PostGIS RPC function
+      // The KML parser already gives us GeoJSON format, so we can use it directly
+      const { data: farmResult, error: rpcError } = await supabase.rpc(
+        'create_farm_with_boundary',
         {
-          user_id: user.id,
-          name: farmName,
-          location_data: coordinates,
-        },
-      ]);
+          p_user_id: user.id,
+          p_name: farmName,
+          p_geojson: polygonGeometry
+        }
+      );
 
-      if (error) throw error;
+      if (rpcError) {
+        if (rpcError.message.includes('Invalid polygon')) {
+          throw new Error("Invalid farm boundary in KML file. Please ensure the polygon doesn't intersect itself.");
+        }
+        throw rpcError;
+      }
 
-      alert("Farm boundaries submitted successfully!");
+      if (!farmResult || !farmResult.farm_id) {
+        throw new Error("Failed to create farm in database.");
+      }
+
+      const newFarmId = farmResult.farm_id;
+
+      // 2. Register with AgroMonitoring (needs Leaflet format)
+      const leafletCoords = geoJSONToLeaflet(polygonGeometry);
+      const agroId = await registerPolygonWithAgro(farmName, leafletCoords);
+
+      // 3. Update farm with AgroMonitoring ID
+      const { error: updateError } = await supabase
+        .from("farms")
+        .update({ agromonitoring_id: agroId })
+        .eq("id", newFarmId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Farm boundaries submitted and registered!");
       navigate("/home");
     } catch (error) {
       setError(error.message);

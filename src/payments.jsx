@@ -3,56 +3,46 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./createclient";
 import Sidebar from "./sidebar";
-import { area as turfArea } from "@turf/area";
-import { polygon as turfPolygon } from "@turf/helpers";
 import "./payments.css";
 import Spinner from "./spinner";
 import { useAuth } from "./useauth";
 import { toast } from "react-hot-toast";
+import { geoJSONToMapboxURL } from "./utils/geometryHelpers";
+import { MILESTONE_STATUS, isVerifiedStatus } from "./utils/statusHelpers";
 
 // Payment Farm Card Component - Similar to ReportFarmCard but with payment summary
 const PaymentFarmCard = ({ farm }) => {
   const navigate = useNavigate();
   const mapboxApiKey = import.meta.env.VITE_MAPBOX_API_KEY;
 
-  // Calculate area in hectares (1 hectare = 10,000 sq meters)
-  const getAreaInHectares = (locationData) => {
-    if (!locationData) return 0;
-    const coords = locationData.map((p) => [p.lng, p.lat]);
-    if (coords.length < 3) return 0;
-    if (
-      coords[0][0] !== coords[coords.length - 1][0] ||
-      coords[0][1] !== coords[coords.length - 1][1]
-    ) {
-      coords.push(coords[0]);
+  // Get area - prefer stored area_hectares
+  const getAreaInHectares = () => {
+    if (farm.area_hectares) {
+      return parseFloat(farm.area_hectares).toFixed(2);
     }
-    const poly = turfPolygon([coords]);
-    const areaInMeters = turfArea(poly);
-    return (areaInMeters / 10000).toFixed(2);
+    return "0.00";
   };
 
-  // Construct Mapbox Static Image URL
-  const getMapImageUrl = (locationData) => {
-    if (!locationData || !mapboxApiKey) {
+  // Construct Mapbox Static Image URL from PostGIS boundary
+  const getMapImageUrl = () => {
+    if (!mapboxApiKey) {
       return "https://via.placeholder.com/350x150?text=Map+Preview+Unavailable";
     }
-    const coords = locationData.map((p) => [p.lng, p.lat]);
-    if (coords.length < 3)
-      return "https://via.placeholder.com/350x150?text=Invalid+Polygon";
-    if (
-      coords[0][0] !== coords[coords.length - 1][0] ||
-      coords[0][1] !== coords[coords.length - 1][1]
-    ) {
-      coords.push(coords[0]);
+    
+    if (farm.boundary) {
+      try {
+        const geojson = typeof farm.boundary === 'string' ? JSON.parse(farm.boundary) : farm.boundary;
+        return geoJSONToMapboxURL(geojson, mapboxApiKey);
+      } catch (e) {
+        console.warn('Failed to parse boundary GeoJSON:', e);
+      }
     }
-    const geoJson = turfPolygon([coords]);
-    const encodedGeoJson = encodeURIComponent(JSON.stringify(geoJson.geometry));
-
-    return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/geojson(${encodedGeoJson})/auto/350x150?padding=20&access_token=${mapboxApiKey}`;
+    
+    return "https://via.placeholder.com/350x150?text=No+Boundary+Data";
   };
 
-  const area = getAreaInHectares(farm.location_data);
-  const imageUrl = getMapImageUrl(farm.location_data);
+  const area = getAreaInHectares();
+  const imageUrl = getMapImageUrl();
   
   // Payment summary from farm prop
   const paymentSummary = farm.paymentSummary || {
@@ -150,12 +140,14 @@ const PaymentsPage = () => {
         setError("");
 
         // Fetch farms based on user role
+        // Fetch farms based on user role
         let query = supabase
           .from("farms")
           .select(`
             id,
             name,
-            location_data,
+            area_hectares,
+            boundary,
             user_id
           `);
 
@@ -216,9 +208,9 @@ const PaymentsPage = () => {
               // Step 2: Get all verified milestones for these cycles
               const { data: milestones, error: milestonesError } = await supabase
                 .from("cycle_milestones")
-                .select("payment_status, amount")
+                .select("payment_status, amount, status")
                 .in("crop_cycle_id", cycleIds)
-                .eq("is_verified", true); // Only count verified milestones
+                .eq("status", MILESTONE_STATUS.VERIFIED); // Only count verified milestones
 
               if (milestonesError) {
                 console.error(`Error fetching milestones for farm ${farm.id}:`, milestonesError);

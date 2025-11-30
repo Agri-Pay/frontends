@@ -266,6 +266,14 @@ import {
 
 import "./farmdetails.css";
 import { useAuth } from "./useauth";
+import { 
+  MILESTONE_STATUS, 
+  getStatusDisplay, 
+  getStatusColor,
+  isVerifiedStatus,
+  isPendingVerification 
+} from "./utils/statusHelpers";
+import { geoJSONToLeaflet } from "./utils/geometryHelpers";
 
 // Register Chart.js components
 ChartJS.register(
@@ -362,6 +370,27 @@ const isValidNumber = (value) => {
   return (
     value !== null && value !== undefined && !isNaN(value) && isFinite(value)
   );
+};
+
+// Helper function to get farm coordinates from PostGIS boundary
+// Returns coordinates in Leaflet format [{lat, lng}] for Sentinel Hub API compatibility
+const getFarmCoordinates = (farmData) => {
+  if (!farmData) return null;
+  
+  // Get coordinates from PostGIS boundary column
+  if (farmData.boundary) {
+    try {
+      // boundary is already GeoJSON from the database
+      const geojson = typeof farmData.boundary === 'string' 
+        ? JSON.parse(farmData.boundary) 
+        : farmData.boundary;
+      return geoJSONToLeaflet(geojson);
+    } catch (e) {
+      console.warn('Failed to parse boundary GeoJSON:', e);
+    }
+  }
+  
+  return null;
 };
 
 const FarmDetailsPage = () => {
@@ -506,23 +535,32 @@ const FarmDetailsPage = () => {
           const failedRequests = [];
           results.forEach((result, index) => {
             if (result.status === "rejected") {
-              console.error(
+              console.warn(
                 `Failed to fetch ${apiNames[index]} data:`,
                 result.reason
               );
-              failedRequests.push(apiNames[index]);
+              // Only add to failed list if it's not NDVI (which takes time for new farms)
+              if (apiNames[index] !== "NDVI") {
+                failedRequests.push(apiNames[index]);
+              }
             }
           });
 
-          // Show toast notification if some API calls failed
+          // Show toast notification if critical API calls failed (not NDVI)
           if (failedRequests.length > 0) {
             toast.error(`Failed to fetch: ${failedRequests.join(", ")}`);
           }
+          
+          // Show info message if NDVI specifically failed (normal for new farms)
+          if (results[2].status === "rejected") {
+            console.info("NDVI data not yet available - this is normal for newly registered farms (takes 24-48 hours)");
+          }
 
           // --- Fetch Sentinel Hub data ---
-          // Only fetch if we have farm coordinates
-          if (farmData.location_data && farmData.location_data.length > 0) {
-            fetchSentinelData(farmData.location_data);
+          // Get coordinates from either new PostGIS boundary or deprecated location_data
+          const farmCoords = getFarmCoordinates(farmData);
+          if (farmCoords && farmCoords.length > 0) {
+            fetchSentinelData(farmCoords);
           }
         } else {
           // If the farm isn't registered with AgroMonitoring, we can't fetch this data.
@@ -531,8 +569,9 @@ const FarmDetailsPage = () => {
           );
 
           // But we can still try Sentinel Hub if we have coordinates
-          if (farmData.location_data && farmData.location_data.length > 0) {
-            fetchSentinelData(farmData.location_data);
+          const farmCoords = getFarmCoordinates(farmData);
+          if (farmCoords && farmCoords.length > 0) {
+            fetchSentinelData(farmCoords);
           }
         }
         // --- END OF FIX ---
@@ -621,21 +660,27 @@ const FarmDetailsPage = () => {
   const handleConfirmApprove = async () => {
     if (!milestoneToVerify) return;
 
-    const { error } = await supabase
-      .from("cycle_milestones")
-      .update({ is_verified: true })
-      .eq("id", milestoneToVerify.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("update-milestone-status", {
+        body: { 
+          milestoneId: milestoneToVerify.id, 
+          action: "verify" 
+        },
+      });
 
-    if (error) {
-      toast.error("Error updating verification");
-    } else {
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
       toast.success("Milestone approved successfully");
       // Update local state for instant UI feedback
       setCycleMilestones((prev) =>
         prev.map((m) =>
-          m.id === milestoneToVerify.id ? { ...m, is_verified: true } : m
+          m.id === milestoneToVerify.id ? { ...m, status: MILESTONE_STATUS.VERIFIED } : m
         )
       );
+    } catch (error) {
+      console.error("Verification error:", error);
+      toast.error(error.message || "Error updating verification");
     }
     setMilestoneToVerify(null);
   };
@@ -660,20 +705,26 @@ const FarmDetailsPage = () => {
     }
   };
   const handleStatusChange = async (milestoneId, newStatus) => {
-    const { error } = await supabase
-      .from("cycle_milestones")
-      .update({ status: newStatus })
-      .eq("id", milestoneId);
-    if (error) {
-      // alert(error.message);
-      toast.error(error.message);
-    } else {
+    try {
+      const { data, error } = await supabase.functions.invoke("update-milestone-status", {
+        body: { 
+          milestoneId, 
+          newStatus 
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
       // Update local state for instant UI feedback
       setCycleMilestones((prev) =>
         prev.map((m) =>
           m.id === milestoneId ? { ...m, status: newStatus } : m
         )
       );
+    } catch (error) {
+      console.error("Status change error:", error);
+      toast.error(error.message || "Error updating status");
     }
   };
 
@@ -755,17 +806,15 @@ const FarmDetailsPage = () => {
                       // UI for Admin (Technical Officer)
                       <>
                         <span
-                          className={`status-pill role-view ${ms.status
-                            .toLowerCase()
-                            .replace(" ", "-")}`}
+                          className={`status-pill role-view ${getStatusColor(ms.status)}`}
                         >
-                          {ms.status}
+                          {getStatusDisplay(ms.status)}
                         </span>
-                        {!ms.is_verified ? (
+                        {!isVerifiedStatus(ms.status) ? (
                           <button
                             onClick={() => handleApproveClick(ms)}
                             className="verify-btn verify"
-                            disabled={ms.status !== "Completed"} // Only allow verification if farmer marked it complete
+                            disabled={!isPendingVerification(ms.status)} // Only allow verification if farmer marked it complete
                           >
                             Verify
                           </button>
@@ -779,24 +828,25 @@ const FarmDetailsPage = () => {
                         )}
                       </>
                     ) : (
-                      // UI for Farmer
+                      // UI for Farmer - can only set to not_started, in_progress, or pending_verification
                       <>
                         <select
                           value={ms.status}
                           onChange={(e) =>
                             handleStatusChange(ms.id, e.target.value)
                           }
+                          disabled={isVerifiedStatus(ms.status)} // Cannot change after verified
                         >
-                          <option>Not Started</option>
-                          <option>In Progress</option>
-                          <option>Completed</option>
+                          <option value={MILESTONE_STATUS.NOT_STARTED}>Not Started</option>
+                          <option value={MILESTONE_STATUS.IN_PROGRESS}>In Progress</option>
+                          <option value={MILESTONE_STATUS.PENDING_VERIFICATION}>Completed - Awaiting Verification</option>
                         </select>
                         <span
                           className={`verified-badge ${
-                            ms.is_verified ? "verified" : ""
+                            isVerifiedStatus(ms.status) ? "verified" : ""
                           }`}
                         >
-                          {ms.is_verified ? "Verified" : "Not Verified"}
+                          {isVerifiedStatus(ms.status) ? "Verified" : getStatusDisplay(ms.status)}
                         </span>
                       </>
                     )}

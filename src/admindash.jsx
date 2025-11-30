@@ -8,6 +8,7 @@ import Notifications from "./notifications";
 import { useAuth } from "./useauth";
 import { Link, useNavigate } from "react-router-dom";
 import Spinner from "./spinner";
+import { MILESTONE_STATUS, isVerifiedStatus, getStatusDisplay } from "./utils/statusHelpers";
 
 const AdminDashboardPage = () => {
   const [metrics, setMetrics] = useState({
@@ -35,7 +36,7 @@ const AdminDashboardPage = () => {
         const { count: verifiedCount } = await supabase
           .from("cycle_milestones")
           .select("*", { count: "exact", head: true })
-          .eq("is_verified", true);
+          .eq("status", MILESTONE_STATUS.VERIFIED);
 
         // --- THE FIX IS HERE: Call the RPC function ---
         const { data: activities, error } = await supabase.rpc(
@@ -138,10 +139,10 @@ const AdminDashboardPage = () => {
                       <td>
                         <span
                           className={`status-pill ${
-                            activity.is_verified ? "verified" : "pending"
+                            isVerifiedStatus(activity.status) ? "verified" : "pending"
                           }`}
                         >
-                          {activity.is_verified ? "Verified" : "Pending"}
+                          {isVerifiedStatus(activity.status) ? "Verified" : getStatusDisplay(activity.status)}
                         </span>
                       </td>
                       <td>

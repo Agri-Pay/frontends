@@ -9,6 +9,7 @@ import { registerPolygonWithAgro } from "./agromonitoring";
 import Spinner from "./spinner";
 import { toast } from "react-hot-toast";
 import { useAuth } from "./useauth";
+import { leafletToGeoJSON } from "./utils/geometryHelpers";
 
 // Minimal header for this page
 const MinimalHeader = () => (
@@ -81,42 +82,53 @@ const CreateFarmPage = () => {
     }
 
     setLoading(true);
-
-    setLoading(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("User not found.");
 
-      // 1. Insert the farm into our database and get the new record back
-      const { data: newFarm, error: insertError } = await supabase
-        .from("farms")
-        .insert([
-          { user_id: user.id, name: farmName, location_data: polygonCoords },
-        ])
-        .select() // IMPORTANT: select() returns the inserted row
-        .single();
+      // Convert Leaflet coordinates to GeoJSON format for PostGIS
+      // polygonCoords is array of Leaflet LatLng objects: [{lat, lng}, ...]
+      const leafletCoords = polygonCoords.map(p => ({ lat: p.lat, lng: p.lng }));
+      const geoJsonGeometry = leafletToGeoJSON(leafletCoords);
 
-      if (insertError) throw insertError;
-      if (!newFarm) throw new Error("Failed to create farm in database.");
-
-      // 2. Register the polygon with AgroMonitoring
-      const agroId = await registerPolygonWithAgro(
-        newFarm.name,
-        newFarm.location_data
+      // 1. Create farm using PostGIS RPC function
+      const { data: farmResult, error: rpcError } = await supabase.rpc(
+        'create_farm_with_boundary',
+        {
+          p_user_id: user.id,
+          p_name: farmName,
+          p_geojson: geoJsonGeometry
+        }
       );
+
+      if (rpcError) {
+        // Handle specific PostGIS errors with user-friendly messages
+        if (rpcError.message.includes('Invalid polygon')) {
+          throw new Error("Invalid farm boundary. Please ensure the polygon doesn't intersect itself.");
+        }
+        throw rpcError;
+      }
+      
+      if (!farmResult || !farmResult.farm_id) {
+        throw new Error("Failed to create farm in database.");
+      }
+
+      const newFarmId = farmResult.farm_id;
+
+      // 2. Register the polygon with AgroMonitoring (uses Leaflet format)
+      const agroId = await registerPolygonWithAgro(farmName, leafletCoords);
 
       // 3. Update our farm record with the new AgroMonitoring ID
       const { error: updateError } = await supabase
         .from("farms")
         .update({ agromonitoring_id: agroId })
-        .eq("id", newFarm.id);
+        .eq("id", newFarmId);
 
       if (updateError) throw updateError;
 
-      // alert("Farm saved and registered successfully!");
-      toast.success("From saved and registered!");
+      toast.success("Farm saved and registered!");
       navigate("/home");
     } catch (error) {
       setError(error.message);

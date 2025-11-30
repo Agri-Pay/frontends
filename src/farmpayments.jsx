@@ -7,6 +7,7 @@ import Spinner from "./spinner";
 import { useAuth } from "./useauth";
 import { toast } from "react-hot-toast";
 import "./farmpayments.css";
+import { MILESTONE_STATUS, isVerifiedStatus, getStatusDisplay } from "./utils/statusHelpers";
 
 // Helper Functions
 const formatCurrency = (amount) => {
@@ -72,11 +73,11 @@ const PaymentMilestoneItem = ({ milestone, farmId }) => {
         {/* Approval Status */}
         <div className="status-group">
           <span className="status-label">Approval:</span>
-          <span className={`status-badge ${milestone.is_verified ? "verified" : "pending"}`}>
+          <span className={`status-badge ${isVerifiedStatus(milestone.status) ? "verified" : "pending"}`}>
             <span className="material-symbols-outlined">
-              {milestone.is_verified ? "check_circle" : "schedule"}
+              {isVerifiedStatus(milestone.status) ? "check_circle" : "schedule"}
             </span>
-            {milestone.is_verified ? "Approved" : "Pending Review"}
+            {isVerifiedStatus(milestone.status) ? "Approved" : getStatusDisplay(milestone.status)}
           </span>
         </div>
         
@@ -261,6 +262,7 @@ const FarmPaymentsPage = () => {
         if (cyclesError) throw cyclesError;
 
         // For each cycle, fetch verified milestones with payment data and transactions
+        // For each cycle, fetch verified milestones with payment data and transactions
         const cyclesWithPayments = await Promise.all(
           (cyclesData || []).map(async (cycle) => {
             const { data: milestonesData, error: milestonesError } = await supabase
@@ -268,7 +270,6 @@ const FarmPaymentsPage = () => {
               .select(`
                 id,
                 status,
-                is_verified,
                 amount,
                 payment_status,
                 updated_at,
@@ -285,7 +286,7 @@ const FarmPaymentsPage = () => {
                 )
               `)
               .eq("crop_cycle_id", cycle.id)
-              .eq("is_verified", true) // Only show approved milestones
+              .eq("status", MILESTONE_STATUS.VERIFIED) // Only show approved milestones
               .order("updated_at", { ascending: false });
 
             if (milestonesError) {

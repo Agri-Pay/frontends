@@ -5,14 +5,13 @@ import "./dashboard.css";
 import Modal from "./modal";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { area as turfArea } from "@turf/area";
-import { polygon as turfPolygon } from "@turf/helpers";
 
 // src/pages/DashboardPage.jsx
 import { useState, useEffect } from "react";
 import { supabase } from "./createclient"; // Import supabase client
 import Spinner from "./spinner";
 import { toast } from "react-hot-toast";
+import { isVerified, normalizeStatus, MILESTONE_STATUSES } from "./utils/statusHelpers";
 const DashboardPage = () => {
   // State to hold the user's profile and loading status
   const [userProfile, setUserProfile] = useState(null);
@@ -190,7 +189,8 @@ const DashboardPage = () => {
             .select("full_name")
             .eq("id", userId)
             .single(),
-          supabase.from("farms").select("location_data").eq("user_id", userId),
+          // Use stored area_hectares instead of calculating from location_data
+          supabase.from("farms").select("id, area_hectares").eq("user_id", userId),
           supabase
             .from("cycle_milestones")
             .select(
@@ -201,8 +201,9 @@ const DashboardPage = () => {
                             milestone_templates(name)
                         `
             )
-            .eq("crop_cycles.user_id", userId) // <-- THE CRITICAL FIX
+            .eq("crop_cycles.user_id", userId)
             .eq("crop_cycles.is_active", true),
+          // Query for verified milestones using status enum instead of is_verified
           supabase
             .from("cycle_milestones")
             .select(
@@ -215,7 +216,7 @@ const DashboardPage = () => {
                         `
             )
             .eq("crop_cycles.user_id", userId)
-            .eq("is_verified", true)
+            .eq("status", "verified")  // Use status enum instead of is_verified
             .order("updated_at", { ascending: false })
             .limit(5),
         ]);
@@ -224,39 +225,33 @@ const DashboardPage = () => {
         if (profileRes.error) throw profileRes.error;
         setUserProfile(profileRes.data);
 
-        // Process Farms for Summary
+        // Process Farms for Summary - use stored area_hectares
         if (farmsRes.error) throw farmsRes.error;
         if (farmsRes.data) {
-          let totalMeters = 0;
-          farmsRes.data.forEach((farm) => {
-            if (farm.location_data?.length > 2) {
-              const coords = farm.location_data.map((p) => [p.lng, p.lat]);
-              if (
-                coords[0][0] !== coords[coords.length - 1][0] ||
-                coords[0][1] !== coords[coords.length - 1][1]
-              ) {
-                coords.push(coords[0]);
-              }
-              totalMeters += turfArea(turfPolygon([coords]));
-            }
-          });
-          const totalAcres = totalMeters / 4046.86;
+          // Sum up area_hectares and convert to acres
+          const totalHectares = farmsRes.data.reduce(
+            (sum, farm) => sum + (farm.area_hectares || 0), 
+            0
+          );
+          const totalAcres = totalHectares * 2.471; // 1 hectare = 2.471 acres
           setFarmSummary({
             count: farmsRes.data.length,
             totalAcreage: totalAcres.toFixed(1),
           });
         }
 
-        // Process Milestones for Summary
+        // Process Milestones for Summary - use new status values
         if (milestonesRes.error) throw milestonesRes.error;
         if (milestonesRes.data) {
           const milestones = milestonesRes.data;
-          const completed = milestones.filter(
-            (m) => m.status === "Completed"
+          // Count verified milestones using the helper function
+          const verified = milestones.filter(
+            (m) => isVerified(m.status)
           ).length;
           const total = milestones.length;
-          const progress = total > 0 ? (completed / total) * 100 : 0;
-          const upcoming = milestones.filter((m) => m.status !== "Completed");
+          const progress = total > 0 ? (verified / total) * 100 : 0;
+          // Upcoming = not verified (includes not_started, in_progress, pending_verification)
+          const upcoming = milestones.filter((m) => !isVerified(m.status));
           setMilestoneSummary({ upcoming, progress: progress.toFixed(0) });
         }
 

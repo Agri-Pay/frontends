@@ -3,57 +3,48 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./createclient";
 import Sidebar from "./sidebar";
-import { area as turfArea } from "@turf/area";
-import { polygon as turfPolygon } from "@turf/helpers";
 import "./reports.css";
 import Spinner from "./spinner";
 import { useAuth } from "./useauth";
+import { geoJSONToMapboxURL } from "./utils/geometryHelpers";
+import { isCompletedStatus } from "./utils/statusHelpers";
 
 // Report Farm Card Component - Similar to FarmCard but with "View Reports" button
 const ReportFarmCard = ({ farm }) => {
   const navigate = useNavigate();
   const mapboxApiKey = import.meta.env.VITE_MAPBOX_API_KEY;
 
-  // Calculate area in hectares (1 hectare = 10,000 sq meters)
-  const getAreaInHectares = (locationData) => {
-    if (!locationData) return 0;
-    const coords = locationData.map((p) => [p.lng, p.lat]);
-    if (coords.length < 3) return 0;
-    if (
-      coords[0][0] !== coords[coords.length - 1][0] ||
-      coords[0][1] !== coords[coords.length - 1][1]
-    ) {
-      coords.push(coords[0]);
+  // Get area - prefer stored area_hectares, fallback to location data calculation
+  const getAreaInHectares = () => {
+    // Use pre-calculated area from database
+    if (farm.area_hectares) {
+      return parseFloat(farm.area_hectares).toFixed(2);
     }
-    const poly = turfPolygon([coords]);
-    const areaInMeters = turfArea(poly);
-    return (areaInMeters / 10000).toFixed(2);
+    return "0.00";
   };
 
-  // Construct Mapbox Static Image URL
-  const getMapImageUrl = (locationData) => {
-    if (!locationData || !mapboxApiKey) {
+  // Construct Mapbox Static Image URL from PostGIS boundary
+  const getMapImageUrl = () => {
+    if (!mapboxApiKey) {
       return "https://via.placeholder.com/350x150?text=Map+Preview+Unavailable";
     }
-    const coords = locationData.map((p) => [p.lng, p.lat]);
-    if (coords.length < 3)
-      return "https://via.placeholder.com/350x150?text=Invalid+Polygon";
-    if (
-      coords[0][0] !== coords[coords.length - 1][0] ||
-      coords[0][1] !== coords[coords.length - 1][1]
-    ) {
-      coords.push(coords[0]);
+    
+    if (farm.boundary) {
+      try {
+        const geojson = typeof farm.boundary === 'string' ? JSON.parse(farm.boundary) : farm.boundary;
+        return geoJSONToMapboxURL(geojson, mapboxApiKey);
+      } catch (e) {
+        console.warn('Failed to parse boundary GeoJSON:', e);
+      }
     }
-    const geoJson = turfPolygon([coords]);
-    const encodedGeoJson = encodeURIComponent(JSON.stringify(geoJson.geometry));
-
-    return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/geojson(${encodedGeoJson})/auto/350x150?padding=20&access_token=${mapboxApiKey}`;
+    
+    return "https://via.placeholder.com/350x150?text=No+Boundary+Data";
   };
 
-  const area = getAreaInHectares(farm.location_data);
-  const imageUrl = getMapImageUrl(farm.location_data);
+  const area = getAreaInHectares();
+  const imageUrl = getMapImageUrl();
   
-  // Mock report count for now - can be calculated from actual data later
+  // Report count from data
   const reportCount = farm.report_count || 0;
 
   return (
@@ -106,7 +97,8 @@ const ReportsPage = () => {
           .select(`
             id, 
             name, 
-            location_data,
+            area_hectares,
+            boundary,
             user_id
           `);
 
@@ -119,7 +111,7 @@ const ReportsPage = () => {
         
         if (farmsError) throw farmsError;
 
-        // For each farm, count completed milestones (these would be reports)
+        // For each farm, count completed/verified milestones (these would be reports)
         const farmsWithReportCounts = await Promise.all(
           (farmsData || []).map(async (farm) => {
             // First get the crop cycles for this farm
@@ -135,16 +127,20 @@ const ReportsPage = () => {
               };
             }
 
-            // Count completed milestones across all cycles for this farm
-            const { count, error } = await supabase
+            // Get all milestones for these cycles
+            const { data: milestones, error } = await supabase
               .from("cycle_milestones")
-              .select("*", { count: "exact", head: true })
-              .in("cycle_id", cycles.map(c => c.id))
-              .eq("status", "Completed");
+              .select("status")
+              .in("cycle_id", cycles.map(c => c.id));
+
+            // Count milestones that are completed (using helper for both old and new status values)
+            const completedCount = milestones 
+              ? milestones.filter(m => isCompletedStatus(m.status)).length 
+              : 0;
 
             return {
               ...farm,
-              report_count: error ? 0 : (count || 0)
+              report_count: error ? 0 : completedCount
             };
           })
         );

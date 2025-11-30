@@ -8,12 +8,18 @@ import { useAuth } from "./useauth";
 import { toast } from "react-hot-toast";
 import ConfirmDialog from "./confirmdialog";
 import "./farmreports.css";
+import { 
+  MILESTONE_STATUS, 
+  isVerifiedStatus, 
+  isPendingVerification,
+  getStatusDisplay 
+} from "./utils/statusHelpers";
 
 // Mock data generator for agro_augmentation if null
 const generateMockReportData = (milestone) => ({
   report_id: `rpt_${milestone.id}`,
   generated_at: milestone.updated_at || new Date().toISOString(),
-  ai_verdict: milestone.is_verified ? "approved" : "pending",
+  ai_verdict: isVerifiedStatus(milestone.status) ? "approved" : "pending",
   confidence_score: Math.floor(Math.random() * 15) + 85, // 85-100%
   ndvi: {
     current_value: (Math.random() * 0.3 + 0.6).toFixed(2), // 0.6-0.9
@@ -60,18 +66,25 @@ const ReportItem = ({ report, userRole, onVerificationChange }) => {
   }, [report.agro_augmentation, report.id]);
   
   const handleVerificationChange = async (newVerifiedStatus) => {
-    const { error } = await supabase
-      .from("cycle_milestones")
-      .update({ is_verified: newVerifiedStatus })
-      .eq("id", report.id);
+    try {
+      const action = newVerifiedStatus ? "verify" : "reject";
+      const { data, error } = await supabase.functions.invoke("update-milestone-status", {
+        body: { 
+          milestoneId: report.id, 
+          action 
+        },
+      });
 
-    if (error) {
-      toast.error("Error updating verification");
-    } else {
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
       toast.success(`Milestone ${newVerifiedStatus ? "approved" : "rejected"}`);
       if (onVerificationChange) {
-        onVerificationChange(report.id, newVerifiedStatus);
+        onVerificationChange(report.id, data.newStatus);
       }
+    } catch (error) {
+      console.error("Verification error:", error);
+      toast.error(error.message || "Error updating verification");
     }
   };
 
@@ -105,8 +118,8 @@ const ReportItem = ({ report, userRole, onVerificationChange }) => {
           </div>
         </div>
         <div className="report-status-section">
-          <span className={`status-badge ${report.is_verified ? "verified" : "pending"}`}>
-            {report.is_verified ? "Verified" : "Pending"}
+          <span className={`status-badge ${isVerifiedStatus(report.status) ? "verified" : "pending"}`}>
+            {isVerifiedStatus(report.status) ? "Verified" : getStatusDisplay(report.status)}
           </span>
         </div>
       </div>
@@ -262,18 +275,19 @@ const ReportItem = ({ report, userRole, onVerificationChange }) => {
           </div>
 
           {/* Admin Action Panel - Same as farmdetails.jsx milestone verification */}
-          {userRole === "admin" && !report.is_verified && (
+          {userRole === "admin" && !isVerifiedStatus(report.status) && (
             <div className="admin-actions">
               <button
                 className="verify-btn verify"
                 onClick={handleApproveClick}
+                disabled={!isPendingVerification(report.status)}
               >
                 <span className="material-symbols-outlined">check_circle</span>
                 Approve Verification
               </button>
             </div>
           )}
-          {userRole === "admin" && report.is_verified && (
+          {userRole === "admin" && isVerifiedStatus(report.status) && (
             <div className="verification-complete-message">
               <span className="material-symbols-outlined">check_circle</span>
               <span>Milestone verified and payment released. Blockchain transaction cannot be reversed.</span>
@@ -354,6 +368,8 @@ const FarmReportsPage = () => {
         setFarm(farmData);
 
         // Fetch all completed milestones for this farm (these are the reports)
+        // Fetch all completed/pending verification milestones for this farm (these are the reports)
+        // Include both old 'Completed' status and new statuses that represent completed work
         const { data: reportsData, error: reportsError } = await supabase
           .from("cycle_milestones")
           .select(`
@@ -366,7 +382,12 @@ const FarmReportsPage = () => {
             )
           `)
           .eq("crop_cycles.farm_id", farmId)
-          .eq("status", "Completed")
+          .in("status", [
+            "Completed",  // Old status (transition period)
+            MILESTONE_STATUS.PENDING_VERIFICATION,
+            MILESTONE_STATUS.VERIFIED,
+            MILESTONE_STATUS.REJECTED
+          ])
           .order("updated_at", { ascending: false });
 
         if (reportsError) throw reportsError;
@@ -387,7 +408,7 @@ const FarmReportsPage = () => {
   const handleVerificationChange = (reportId, newStatus) => {
     setReports((prev) =>
       prev.map((r) =>
-        r.id === reportId ? { ...r, is_verified: newStatus } : r
+        r.id === reportId ? { ...r, status: newStatus } : r
       )
     );
   };
