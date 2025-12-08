@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  geoserver:
+    image: kartoza/geoserver:2.24.0
+    container_name: agripay-geoserver
+    ports:
+      - "8080:8080"
+    environment:
+      - GEOSERVER_ADMIN_USER=admin
+      - GEOSERVER_ADMIN_PASSWORD=geoserver
+      - INITIAL_MEMORY=1G
+      - MAXIMUM_MEMORY=2G
+      - STABLE_EXTENSIONS=wps,csw
+      - GEOSERVER_DATA_DIR=/opt/geoserver/data_dir
+    volumes:
+      # GeoServer data directory
+      - ./geoserver-data:/opt/geoserver/data_dir
+      # Mount your processed imagery folder
+      - ./processed-imagery:/opt/geoserver/data_dir/coverages
+    restart: unless-stopped
+# Note: On Windows, paths use forward slashes in docker-compose
+# The ./processed-imagery folder is where you'll put your GeoTIFF files

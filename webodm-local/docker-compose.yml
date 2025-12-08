@@ -1,0 +1,85 @@
+version: "3.8"
+
+# WebODM - Drone Image Processing Pipeline
+# Processes raw drone images into orthomosaics and vegetation indices
+
+services:
+  # Main WebODM web application
+  webapp:
+    image: opendronemap/webodm_webapp:latest
+    container_name: webodm-webapp
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./data/media:/webodm/app/media
+      - ./data/processing:/webodm/app/processing
+    environment:
+      - WO_DEBUG=NO
+      - WO_HOST=0.0.0.0
+      - WO_PORT=8000
+      - WO_BROKER=redis://redis:6379
+      - WO_DEFAULT_NODES=node-odm:3000
+    depends_on:
+      - db
+      - redis
+      - node-odm
+    restart: unless-stopped
+
+  # PostgreSQL database for WebODM
+  db:
+    image: postgres:13
+    container_name: webodm-db
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=webodm
+      - POSTGRES_USER=webodm
+      - POSTGRES_PASSWORD=webodm_pass
+    restart: unless-stopped
+
+  # Redis for task queue
+  redis:
+    image: redis:7-alpine
+    container_name: webodm-redis
+    restart: unless-stopped
+
+  # NodeODM - The actual processing engine
+  node-odm:
+    image: opendronemap/nodeodm:latest
+    container_name: webodm-nodeodm
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/nodeodm:/var/www/data
+      - ./output:/var/www/output
+    environment:
+      # Performance settings
+      - ODM_MAX_CONCURRENCY=0 # Auto-detect CPU cores
+    deploy:
+      resources:
+        limits:
+          memory: 8G # Adjust based on your system
+    restart: unless-stopped
+
+  # Celery worker for background tasks
+  worker:
+    image: opendronemap/webodm_webapp:latest
+    container_name: webodm-worker
+    entrypoint: /webodm/start_worker.sh
+    volumes:
+      - ./data/media:/webodm/app/media
+      - ./data/processing:/webodm/app/processing
+    environment:
+      - WO_BROKER=redis://redis:6379
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+volumes:
+  webodm_data:
+# Usage:
+# 1. Start: docker-compose up -d
+# 2. Access: http://localhost:8080
+# 3. Default login: admin / admin
+# 4. Upload raw drone images → Process → Download orthophoto

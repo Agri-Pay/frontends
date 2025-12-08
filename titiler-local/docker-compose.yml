@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    container_name: agripay-titiler
+    ports:
+      - "8000:80"
+    environment:
+      # Performance settings
+      - CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.TIF,.tiff,.TIFF
+      - GDAL_CACHEMAX=200
+      - GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR
+      - GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES
+      - GDAL_HTTP_MULTIPLEX=YES
+      - VSI_CACHE=TRUE
+      - VSI_CACHE_SIZE=5000000
+      # CORS - allow all origins for development
+      - TITILER_API_CORS_ORIGINS=*
+    volumes:
+      # Mount your imagery folder - accessible as /data in container
+      - ./imagery:/data
+    restart: unless-stopped
+# Usage:
+# 1. Put your GeoTIFF files in the ./imagery folder
+# 2. Run: docker-compose up -d
+# 3. Access API docs: http://localhost:8000/docs
+# 4. Get tiles: http://localhost:8000/cog/tiles/{z}/{x}/{y}?url=file:///data/your_file.tif

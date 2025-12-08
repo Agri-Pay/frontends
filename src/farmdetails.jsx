@@ -248,6 +248,7 @@ import {
   getVegetationStats,
   getVegetationHistory,
 } from "./sentinelhub";
+import DroneImagerySection from "./DroneImagerySection";
 import { toast } from "react-hot-toast";
 
 // Import Chart.js components
@@ -266,12 +267,12 @@ import {
 
 import "./farmdetails.css";
 import { useAuth } from "./useauth";
-import { 
-  MILESTONE_STATUS, 
-  getStatusDisplay, 
+import {
+  MILESTONE_STATUS,
+  getStatusDisplay,
   getStatusColor,
   isVerifiedStatus,
-  isPendingVerification 
+  isPendingVerification,
 } from "./utils/statusHelpers";
 import { geoJSONToLeaflet } from "./utils/geometryHelpers";
 
@@ -376,20 +377,21 @@ const isValidNumber = (value) => {
 // Returns coordinates in Leaflet format [{lat, lng}] for Sentinel Hub API compatibility
 const getFarmCoordinates = (farmData) => {
   if (!farmData) return null;
-  
+
   // Get coordinates from PostGIS boundary column
   if (farmData.boundary) {
     try {
       // boundary is already GeoJSON from the database
-      const geojson = typeof farmData.boundary === 'string' 
-        ? JSON.parse(farmData.boundary) 
-        : farmData.boundary;
+      const geojson =
+        typeof farmData.boundary === "string"
+          ? JSON.parse(farmData.boundary)
+          : farmData.boundary;
       return geoJSONToLeaflet(geojson);
     } catch (e) {
-      console.warn('Failed to parse boundary GeoJSON:', e);
+      console.warn("Failed to parse boundary GeoJSON:", e);
     }
   }
-  
+
   return null;
 };
 
@@ -550,10 +552,12 @@ const FarmDetailsPage = () => {
           if (failedRequests.length > 0) {
             toast.error(`Failed to fetch: ${failedRequests.join(", ")}`);
           }
-          
+
           // Show info message if NDVI specifically failed (normal for new farms)
           if (results[2].status === "rejected") {
-            console.info("NDVI data not yet available - this is normal for newly registered farms (takes 24-48 hours)");
+            console.info(
+              "NDVI data not yet available - this is normal for newly registered farms (takes 24-48 hours)"
+            );
           }
 
           // --- Fetch Sentinel Hub data ---
@@ -661,12 +665,15 @@ const FarmDetailsPage = () => {
     if (!milestoneToVerify) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke("update-milestone-status", {
-        body: { 
-          milestoneId: milestoneToVerify.id, 
-          action: "verify" 
-        },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "update-milestone-status",
+        {
+          body: {
+            milestoneId: milestoneToVerify.id,
+            action: "verify",
+          },
+        }
+      );
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -675,7 +682,9 @@ const FarmDetailsPage = () => {
       // Update local state for instant UI feedback
       setCycleMilestones((prev) =>
         prev.map((m) =>
-          m.id === milestoneToVerify.id ? { ...m, status: MILESTONE_STATUS.VERIFIED } : m
+          m.id === milestoneToVerify.id
+            ? { ...m, status: MILESTONE_STATUS.VERIFIED }
+            : m
         )
       );
     } catch (error) {
@@ -706,12 +715,15 @@ const FarmDetailsPage = () => {
   };
   const handleStatusChange = async (milestoneId, newStatus) => {
     try {
-      const { data, error } = await supabase.functions.invoke("update-milestone-status", {
-        body: { 
-          milestoneId, 
-          newStatus 
-        },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "update-milestone-status",
+        {
+          body: {
+            milestoneId,
+            newStatus,
+          },
+        }
+      );
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -806,7 +818,9 @@ const FarmDetailsPage = () => {
                       // UI for Admin (Technical Officer)
                       <>
                         <span
-                          className={`status-pill role-view ${getStatusColor(ms.status)}`}
+                          className={`status-pill role-view ${getStatusColor(
+                            ms.status
+                          )}`}
                         >
                           {getStatusDisplay(ms.status)}
                         </span>
@@ -837,16 +851,24 @@ const FarmDetailsPage = () => {
                           }
                           disabled={isVerifiedStatus(ms.status)} // Cannot change after verified
                         >
-                          <option value={MILESTONE_STATUS.NOT_STARTED}>Not Started</option>
-                          <option value={MILESTONE_STATUS.IN_PROGRESS}>In Progress</option>
-                          <option value={MILESTONE_STATUS.PENDING_VERIFICATION}>Completed - Awaiting Verification</option>
+                          <option value={MILESTONE_STATUS.NOT_STARTED}>
+                            Not Started
+                          </option>
+                          <option value={MILESTONE_STATUS.IN_PROGRESS}>
+                            In Progress
+                          </option>
+                          <option value={MILESTONE_STATUS.PENDING_VERIFICATION}>
+                            Completed - Awaiting Verification
+                          </option>
                         </select>
                         <span
                           className={`verified-badge ${
                             isVerifiedStatus(ms.status) ? "verified" : ""
                           }`}
                         >
-                          {isVerifiedStatus(ms.status) ? "Verified" : getStatusDisplay(ms.status)}
+                          {isVerifiedStatus(ms.status)
+                            ? "Verified"
+                            : getStatusDisplay(ms.status)}
                         </span>
                       </>
                     )}
@@ -1471,6 +1493,9 @@ const FarmDetailsPage = () => {
               </div>
             )}
           </div>
+
+          {/* Drone Imagery Card - TiTiler Integration */}
+          <DroneImagerySection farmId={farmId} />
         </div>
       </main>
       <Modal
