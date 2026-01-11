@@ -37,21 +37,38 @@ export const getTileUrl = (filename, options = {}) => {
     params.append("rescale", options.rescale);
   }
 
-  // Add band selection if needed
+  // Add band selection - TiTiler expects separate bidx params
   if (options.bidx) {
-    params.append("bidx", options.bidx);
+    const bands = options.bidx.split(",");
+    bands.forEach((band) => {
+      params.append("bidx", band.trim());
+    });
   }
 
-  return `${TITILER_URL}/cog/tiles/{z}/{x}/{y}?${params.toString()}`;
+  // Add expression for computed indices
+  if (options.expression) {
+    params.append("expression", options.expression);
+  }
+
+  // Add nodata parameter to make empty areas transparent
+  // 0 is commonly used as nodata for drone imagery
+  if (options.nodata !== undefined) {
+    params.append("nodata", options.nodata.toString());
+  }
+
+  // TiTiler requires TileMatrixSetId (WebMercatorQuad) in the URL path
+  return `${TITILER_URL}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`;
 };
 
 /**
  * Get raster bounds for fitting map view
+ * Note: TiTiler doesn't have a separate /cog/bounds endpoint,
+ * bounds are included in the /cog/info response
  */
 export const getBounds = async (filename) => {
   const fileUrl = `file:///data/${filename}`;
   const response = await fetch(
-    `${TITILER_URL}/cog/bounds?url=${encodeURIComponent(fileUrl)}`
+    `${TITILER_URL}/cog/info?url=${encodeURIComponent(fileUrl)}`
   );
 
   if (!response.ok) {
@@ -59,7 +76,7 @@ export const getBounds = async (filename) => {
   }
 
   const data = await response.json();
-  // Returns { bounds: [minx, miny, maxx, maxy] }
+  // Info response includes bounds: [minx, miny, maxx, maxy]
   return data.bounds;
 };
 
@@ -129,49 +146,191 @@ export const getPreviewUrl = (filename, options = {}) => {
     params.append("rescale", options.rescale);
   }
 
+  // Add band selection - TiTiler expects separate bidx params for each band
+  // e.g., "3,2,1" becomes &bidx=3&bidx=2&bidx=1
+  if (options.bidx) {
+    const bands = options.bidx.split(",");
+    bands.forEach((band) => {
+      params.append("bidx", band.trim());
+    });
+  }
+
+  // Add expression for computed indices (e.g., NDVI)
+  if (options.expression) {
+    params.append("expression", options.expression);
+  }
+
+  return `${TITILER_URL}/cog/preview?${params.toString()}`;
+};
+
+/**
+ * Get preview URL using expression (for computed indices like NDVI)
+ */
+export const getExpressionPreviewUrl = (filename, expression, options = {}) => {
+  const fileUrl = `file:///data/${filename}`;
+  const params = new URLSearchParams({
+    url: fileUrl,
+    expression: expression,
+    max_size: options.maxSize || 512,
+  });
+
+  if (options.colormap) {
+    params.append("colormap_name", options.colormap);
+  }
+
+  if (options.rescale) {
+    params.append("rescale", options.rescale);
+  }
+
   return `${TITILER_URL}/cog/preview?${params.toString()}`;
 };
 
 /**
  * Predefined layer configurations
+ * For MicaSense RedEdge-MX bands:
+ *   Band 1: Blue (475nm)
+ *   Band 2: Green (560nm)
+ *   Band 3: Red (668nm)
+ *   Band 4: Red Edge (717nm)
+ *   Band 5: NIR (840nm)
  */
 export const LAYER_CONFIGS = {
+  // === Band Composites ===
   rgb: {
-    name: "True Color",
+    name: "True Color (RGB)",
+    description: "Red, Green, Blue composite",
+    bidx: "3,2,1", // Red, Green, Blue
+    rescale: "0,10000", // Based on percentile_2 to percentile_98 from stats
     colormap: null,
-    rescale: null,
-    bidx: "1,2,3",
+    expression: null,
+    nodata: 65535, // MicaSense uses 65535 as nodata/fill value
   },
+  cir: {
+    name: "False Color (CIR)",
+    description: "Color Infrared - vegetation appears red",
+    bidx: "5,3,2", // NIR, Red, Green
+    rescale: "0,15000",
+    colormap: null,
+    expression: null,
+    nodata: 65535,
+  },
+  nrg: {
+    name: "NIR-RedEdge-Green",
+    description: "Highlights vegetation stress",
+    bidx: "5,4,2", // NIR, Red Edge, Green
+    rescale: "0,15000",
+    colormap: null,
+    expression: null,
+    nodata: 65535,
+  },
+
+  // === Individual Bands ===
+  blue: {
+    name: "Blue Band",
+    description: "475nm - Coastal/Aerosol",
+    bidx: "1",
+    rescale: "500,5000",
+    colormap: "blues",
+    expression: null,
+    nodata: 65535,
+  },
+  green: {
+    name: "Green Band",
+    description: "560nm - Visible Green",
+    bidx: "2",
+    rescale: "500,5000",
+    colormap: "greens",
+    expression: null,
+    nodata: 65535,
+  },
+  red: {
+    name: "Red Band",
+    description: "668nm - Visible Red",
+    bidx: "3",
+    rescale: "500,8000",
+    colormap: "reds",
+    expression: null,
+    nodata: 65535,
+  },
+  rededge: {
+    name: "Red Edge Band",
+    description: "717nm - Vegetation stress",
+    bidx: "4",
+    rescale: "500,10000",
+    colormap: "oranges",
+    expression: null,
+    nodata: 65535,
+  },
+  nir: {
+    name: "NIR Band",
+    description: "840nm - Vegetation health",
+    bidx: "5",
+    rescale: "500,15000",
+    colormap: "purples",
+    expression: null,
+    nodata: 65535,
+  },
+
+  // === Computed Indices ===
   ndvi: {
     name: "NDVI",
-    colormap: "rdylgn",
-    rescale: "-1,1",
+    description: "Normalized Difference Vegetation Index",
     bidx: null,
+    rescale: "-0.5,1",
+    colormap: "rdylgn",
+    expression: "(b5-b3)/(b5+b3)", // (NIR - Red) / (NIR + Red)
+    // Note: nodata not set for expressions - TiTiler handles mask from source
   },
   ndre: {
     name: "NDRE",
-    colormap: "rdylgn",
-    rescale: "-1,1",
+    description: "Normalized Difference Red Edge Index",
     bidx: null,
+    rescale: "-0.5,1",
+    colormap: "rdylgn",
+    expression: "(b5-b4)/(b5+b4)", // (NIR - RedEdge) / (NIR + RedEdge)
   },
+  gndvi: {
+    name: "GNDVI",
+    description: "Green Normalized Difference Vegetation Index",
+    bidx: null,
+    rescale: "-0.5,1",
+    colormap: "rdylgn",
+    expression: "(b5-b2)/(b5+b2)", // (NIR - Green) / (NIR + Green)
+  },
+
+  // === Legacy configs (for backwards compatibility) ===
   moisture: {
     name: "Moisture",
     colormap: "blues",
     rescale: "0,1",
     bidx: null,
+    expression: null,
   },
   thermal: {
     name: "Thermal",
     colormap: "inferno",
-    rescale: "20,45", // Celsius
+    rescale: "20,45",
     bidx: null,
+    expression: null,
   },
   lai: {
     name: "LAI",
     colormap: "greens",
     rescale: "0,8",
     bidx: null,
+    expression: null,
   },
+};
+
+/**
+ * MicaSense band definitions for UI
+ */
+export const MICASENSE_BANDS = {
+  1: { name: "Blue", wavelength: "475 nm", color: "#0066ff" },
+  2: { name: "Green", wavelength: "560 nm", color: "#00cc00" },
+  3: { name: "Red", wavelength: "668 nm", color: "#ff0000" },
+  4: { name: "Red Edge", wavelength: "717 nm", color: "#ff6600" },
+  5: { name: "NIR", wavelength: "840 nm", color: "#990099" },
 };
 
 /**

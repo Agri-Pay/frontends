@@ -2,14 +2,20 @@
 /**
  * Drone Imagery Section for Farm Details Page
  * Displays drone imagery with upload and cloud fetch capabilities
- * Uses TiTiler's preview endpoint for simple image display
+ * Uses TiTiler for tile serving with interactive Leaflet map
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import { supabase } from "./createclient";
 import {
   getPreviewUrl,
+  getTileUrl,
+  getBounds,
+  getStatistics,
+  getPointValue,
   checkHealth,
   LAYER_CONFIGS,
   isLocalMode,
@@ -32,6 +38,32 @@ import {
 import { toast } from "react-hot-toast";
 import "./droneimagery.css";
 
+// Helper component to fit map to bounds
+const FitBounds = ({ bounds }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (bounds) {
+      map.fitBounds(bounds, { padding: [20, 20] });
+    }
+  }, [bounds, map]);
+  
+  return null;
+};
+
+// Helper component for map click events
+const MapClickHandler = ({ onClick }) => {
+  useMapEvents({
+    click: (e) => {
+      if (onClick) {
+        onClick(e.latlng.lat, e.latlng.lng);
+      }
+    },
+  });
+  
+  return null;
+};
+
 const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
   // Refs
   const fileInputRef = useRef(null);
@@ -47,6 +79,19 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
   const [loading, setLoading] = useState(true);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  // Map state
+  const [mapBounds, setMapBounds] = useState(null);
+  const [layerOpacity, setLayerOpacity] = useState(1.0);
+  const [tileUrl, setTileUrl] = useState(null);
+  const [pointValue, setPointValue] = useState(null);
+  const [layerStats, setLayerStats] = useState(null);
+  const [useMapView, setUseMapView] = useState(true); // Toggle between map and image view
+  
+  // Multi-layer selection state
+  const [selectedLayers, setSelectedLayers] = useState(["rgb"]); // Array of selected layer types
+  const [layerDropdownOpen, setLayerDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   // Upload state
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -79,6 +124,17 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
     new Date().toISOString().split("T")[0]
   );
   const [searchingByDate, setSearchingByDate] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setLayerDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Check TiTiler server health and local mode
   useEffect(() => {
@@ -174,17 +230,25 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
         pilotName: flight.pilot_name,
         droneModel: flight.drone_model,
         altitude: flight.altitude_meters,
+        storageLocation: flight.storage_location || "local", // NEW: track storage location
         layers: flight.drone_imagery_layers.map((l) => l.layer_type),
         layersData: flight.drone_imagery_layers,
+        // NEW: Get bands (layers where is_band = true)
+        bands: flight.drone_imagery_layers
+          .filter((l) => l.is_band)
+          .sort((a, b) => a.band_number - b.band_number),
       }));
 
       setDroneFlights(flights);
 
       if (flights.length > 0) {
         setSelectedFlight(flights[0]);
-        // Set first available layer as active
-        if (flights[0].layers.length > 0) {
-          setActiveLayerType(flights[0].layers[0]);
+        // Set first available layer as active (prefer rgb if available)
+        const availableLayers = flights[0].layers;
+        if (availableLayers.includes("rgb")) {
+          setActiveLayerType("rgb");
+        } else if (availableLayers.length > 0) {
+          setActiveLayerType(availableLayers[0]);
         }
       }
     } catch (error) {
@@ -480,41 +544,66 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
     [farmId]
   );
 
-  // Get preview URL - use Supabase storage URL for TiTiler
+  // Get preview URL - handles both local and cloud storage
   const getPreviewImageUrl = useCallback(() => {
-    if (!selectedFlight) {
-      console.log("No selected flight");
+    if (!selectedFlight || !serverOnline) {
+      console.log("No selected flight or server offline");
       return null;
     }
 
-    console.log("Selected flight:", selectedFlight);
-    console.log("Active layer type:", activeLayerType);
-    console.log("Layers data:", selectedFlight.layersData);
-
-    const layerData = selectedFlight.layersData?.find(
-      (l) => l.layer_type === activeLayerType
-    );
-    if (!layerData) {
-      console.log("No layer data found for type:", activeLayerType);
-      return null;
-    }
-
-    console.log("Layer data found:", layerData);
-
-    // Get the public URL from Supabase storage
-    const publicUrl = getImageryUrl(farmId, layerData.filename);
-    console.log("Public URL:", publicUrl);
-
+    // Get the layer configuration
     const config = LAYER_CONFIGS[activeLayerType] || {};
+    console.log("Active layer type:", activeLayerType, "Config:", config);
 
-    // Build TiTiler preview URL with the public storage URL
-    const TITILER_URL =
-      import.meta.env.VITE_TITILER_URL || "http://localhost:8000";
+    // Get filename from bands or layers
+    let filename = null;
+    if (selectedFlight.bands && selectedFlight.bands.length > 0) {
+      // Use filename from first band (all bands share same file for MicaSense)
+      filename = selectedFlight.bands[0]?.filename;
+    } else {
+      // Fallback: try to find from layersData
+      const layerData = selectedFlight.layersData?.find(
+        (l) => l.layer_type === activeLayerType
+      );
+      filename = layerData?.filename;
+    }
+
+    if (!filename) {
+      console.log("No filename found for layer");
+      return null;
+    }
+
+    console.log("Using filename:", filename, "Storage:", selectedFlight.storageLocation);
+
+    // For local storage, use TiTiler with file:// protocol
+    if (selectedFlight.storageLocation === "local") {
+      return getPreviewUrl(filename, {
+        bidx: config.bidx,
+        expression: config.expression,
+        colormap: config.colormap,
+        rescale: config.rescale,
+        maxSize: 800,
+      });
+    }
+
+    // For cloud storage, get public URL and pass to TiTiler
+    const publicUrl = getImageryUrl(farmId, filename);
+    const TITILER_URL = import.meta.env.VITE_TITILER_URL || "http://localhost:8000";
     const params = new URLSearchParams({
       url: publicUrl,
       max_size: "800",
     });
 
+    // Add band selection - TiTiler expects separate bidx params
+    if (config.bidx) {
+      const bands = config.bidx.split(",");
+      bands.forEach((band) => {
+        params.append("bidx", band.trim());
+      });
+    }
+    if (config.expression) {
+      params.append("expression", config.expression);
+    }
     if (config.colormap) {
       params.append("colormap_name", config.colormap);
     }
@@ -522,11 +611,115 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
       params.append("rescale", config.rescale);
     }
 
-    const finalUrl = `${TITILER_URL}/cog/preview?${params.toString()}`;
-    console.log("TiTiler URL:", finalUrl);
+    return `${TITILER_URL}/cog/preview?${params.toString()}`;
+  }, [selectedFlight, activeLayerType, farmId, serverOnline]);
 
-    return finalUrl;
-  }, [selectedFlight, activeLayerType, farmId]);
+  // Get filename for the current flight (used by tile URL and other functions)
+  const getCurrentFilename = useCallback(() => {
+    if (!selectedFlight) return null;
+    
+    // Get filename from bands (for multi-band files like MicaSense)
+    if (selectedFlight.bands && selectedFlight.bands.length > 0) {
+      return selectedFlight.bands[0]?.filename;
+    }
+    
+    // Fallback: try to find from layersData
+    const layerData = selectedFlight.layersData?.find(
+      (l) => l.layer_type === activeLayerType
+    );
+    return layerData?.filename || null;
+  }, [selectedFlight, activeLayerType]);
+
+  // Build tile URL for Leaflet map (for a specific layer type)
+  const buildTileUrl = useCallback((layerType = activeLayerType) => {
+    if (!selectedFlight || !serverOnline) return null;
+    
+    const filename = getCurrentFilename();
+    if (!filename) return null;
+    
+    const config = LAYER_CONFIGS[layerType] || {};
+    
+    return getTileUrl(filename, {
+      bidx: config.bidx,
+      expression: config.expression,
+      colormap: config.colormap,
+      rescale: config.rescale,
+      nodata: config.nodata, // Add nodata for transparency
+    });
+  }, [selectedFlight, serverOnline, activeLayerType, getCurrentFilename]);
+
+  // Load bounds and statistics when flight/layer changes
+  useEffect(() => {
+    if (!selectedFlight || !serverOnline) {
+      setTileUrl(null);
+      setMapBounds(null);
+      setLayerStats(null);
+      return;
+    }
+    
+    const filename = getCurrentFilename();
+    if (!filename) {
+      setTileUrl(null);
+      return;
+    }
+    
+    // Build tile URL for primary layer (first selected layer)
+    const primaryLayer = selectedLayers[0] || activeLayerType;
+    const url = buildTileUrl(primaryLayer);
+    setTileUrl(url);
+    setImageError(false);
+    setImageLoading(true);
+    
+    // Fetch bounds
+    const loadBounds = async () => {
+      try {
+        const bounds = await getBounds(filename);
+        // bounds is [minx, miny, maxx, maxy] = [minLon, minLat, maxLon, maxLat]
+        setMapBounds([
+          [bounds[1], bounds[0]], // [minLat, minLon]
+          [bounds[3], bounds[2]], // [maxLat, maxLon]
+        ]);
+      } catch (error) {
+        console.error("Error loading bounds:", error);
+        setImageError(true);
+      } finally {
+        setImageLoading(false);
+      }
+    };
+    
+    // Fetch statistics
+    const loadStats = async () => {
+      try {
+        const statistics = await getStatistics(filename);
+        setLayerStats(statistics);
+      } catch (error) {
+        console.error("Error loading statistics:", error);
+      }
+    };
+    
+    loadBounds();
+    loadStats();
+  }, [selectedFlight, serverOnline, activeLayerType, selectedLayers, getCurrentFilename, buildTileUrl]);
+
+  // Handle point value click
+  const handleMapClick = useCallback(async (lat, lng) => {
+    if (!selectedFlight || !serverOnline) return;
+    
+    const filename = getCurrentFilename();
+    if (!filename) return;
+    
+    try {
+      const result = await getPointValue(filename, lat, lng);
+      setPointValue({
+        lat: lat.toFixed(6),
+        lng: lng.toFixed(6),
+        values: result.values || [],
+      });
+    } catch (error) {
+      console.error("Error getting point value:", error);
+      setPointValue(null);
+    }
+  }, [selectedFlight, serverOnline, getCurrentFilename]);
 
   // Fallback: Get preview URL from local files (for backwards compatibility)
   const getLocalPreviewUrl = useCallback(() => {
@@ -552,12 +745,57 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
     });
   };
 
-  // Get available layer types for current flight
+  // Get available layer types for current flight - organized by category
   const getAvailableLayers = () => {
-    if (!selectedFlight?.layers || selectedFlight.layers.length === 0) {
-      return ["rgb", "ndvi"]; // Default layers
+    if (!selectedFlight) return { composites: [], indices: [], bands: [] };
+
+    // If we have bands, show composite and index options
+    if (selectedFlight.bands && selectedFlight.bands.length >= 5) {
+      // For MicaSense with 5+ bands, show full range of options
+      return {
+        composites: ["rgb", "cir", "nrg"],
+        indices: ["ndvi", "ndre", "gndvi"],
+        bands: ["blue", "green", "red", "rededge", "nir"],
+      };
     }
-    return selectedFlight.layers;
+
+    // Fallback: use layers from database
+    if (selectedFlight.layers && selectedFlight.layers.length > 0) {
+      return {
+        composites: selectedFlight.layers.filter(l => ["rgb", "cir", "nrg"].includes(l)),
+        indices: selectedFlight.layers.filter(l => ["ndvi", "ndre", "gndvi", "moisture", "thermal", "lai"].includes(l)),
+        bands: selectedFlight.layers.filter(l => ["blue", "green", "red", "rededge", "nir"].includes(l)),
+      };
+    }
+
+    return { composites: ["rgb"], indices: ["ndvi"], bands: [] }; // Default layers
+  };
+
+  // Get all available layers as flat array
+  const getAllAvailableLayers = () => {
+    const layers = getAvailableLayers();
+    return [...layers.composites, ...layers.indices, ...layers.bands];
+  };
+
+  // Toggle layer selection
+  const toggleLayerSelection = (layerType) => {
+    setSelectedLayers((prev) => {
+      if (prev.includes(layerType)) {
+        // Remove layer, but keep at least one
+        if (prev.length > 1) {
+          return prev.filter((l) => l !== layerType);
+        }
+        return prev;
+      } else {
+        // Add layer
+        return [...prev, layerType];
+      }
+    });
+    // Update active layer type to the most recently toggled one
+    if (!selectedLayers.includes(layerType)) {
+      setActiveLayerType(layerType);
+    }
+    setPointValue(null);
   };
 
   // Get layer statistics from DB
@@ -716,29 +954,194 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
 
       {/* Layer Type Toggle */}
       {droneFlights.length > 0 && (
-        <div className="image-toggle drone-toggle">
-          {getAvailableLayers().map((layerType) => {
-            const config = LAYER_CONFIGS[layerType] || {
-              name: layerType.toUpperCase(),
-            };
-            return (
-              <button
-                key={layerType}
-                onClick={() => {
-                  setActiveLayerType(layerType);
-                  setImageError(false);
-                  setImageLoading(true);
-                }}
-                className={activeLayerType === layerType ? "active" : ""}
-              >
-                {config.name}
-              </button>
-            );
-          })}
+        <div className="layer-controls-section">
+          {/* View Toggle */}
+          <div className="view-toggle">
+            <button
+              className={useMapView ? "active" : ""}
+              onClick={() => setUseMapView(true)}
+              title="Interactive map view"
+            >
+              <span className="material-symbols-outlined">map</span>
+              Map
+            </button>
+            <button
+              className={!useMapView ? "active" : ""}
+              onClick={() => setUseMapView(false)}
+              title="Simple image preview"
+            >
+              <span className="material-symbols-outlined">image</span>
+              Image
+            </button>
+          </div>
+
+          {/* Layer Selection Dropdown */}
+          <div className="layer-dropdown-container" ref={dropdownRef}>
+            <button
+              className="layer-dropdown-trigger"
+              onClick={() => setLayerDropdownOpen(!layerDropdownOpen)}
+            >
+              <span className="material-symbols-outlined">layers</span>
+              <span className="dropdown-label">
+                {selectedLayers.length === 1
+                  ? LAYER_CONFIGS[selectedLayers[0]]?.name || selectedLayers[0]
+                  : `${selectedLayers.length} Layers Selected`}
+              </span>
+              <span className="material-symbols-outlined dropdown-arrow">
+                {layerDropdownOpen ? "expand_less" : "expand_more"}
+              </span>
+            </button>
+
+            {layerDropdownOpen && (
+              <div className="layer-dropdown-menu">
+                {/* Composites */}
+                {getAvailableLayers().composites.length > 0 && (
+                  <div className="layer-group">
+                    <div className="layer-group-header">
+                      <span className="material-symbols-outlined">photo_library</span>
+                      Band Composites
+                    </div>
+                    {getAvailableLayers().composites.map((layerType) => {
+                      const config = LAYER_CONFIGS[layerType] || { name: layerType };
+                      return (
+                        <label key={layerType} className="layer-checkbox-item">
+                          <input
+                            type="checkbox"
+                            checked={selectedLayers.includes(layerType)}
+                            onChange={() => toggleLayerSelection(layerType)}
+                          />
+                          <span className="checkbox-custom"></span>
+                          <span className="layer-name">{config.name}</span>
+                          <span className="layer-description">{config.description}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Vegetation Indices */}
+                {getAvailableLayers().indices.length > 0 && (
+                  <div className="layer-group">
+                    <div className="layer-group-header">
+                      <span className="material-symbols-outlined">eco</span>
+                      Vegetation Indices
+                    </div>
+                    {getAvailableLayers().indices.map((layerType) => {
+                      const config = LAYER_CONFIGS[layerType] || { name: layerType };
+                      return (
+                        <label key={layerType} className="layer-checkbox-item">
+                          <input
+                            type="checkbox"
+                            checked={selectedLayers.includes(layerType)}
+                            onChange={() => toggleLayerSelection(layerType)}
+                          />
+                          <span className="checkbox-custom"></span>
+                          <span className="layer-name">{config.name}</span>
+                          <span className="layer-description">{config.description}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Individual Bands */}
+                {getAvailableLayers().bands.length > 0 && (
+                  <div className="layer-group">
+                    <div className="layer-group-header">
+                      <span className="material-symbols-outlined">tune</span>
+                      Individual Bands
+                    </div>
+                    {getAvailableLayers().bands.map((layerType) => {
+                      const config = LAYER_CONFIGS[layerType] || { name: layerType };
+                      return (
+                        <label key={layerType} className="layer-checkbox-item">
+                          <input
+                            type="checkbox"
+                            checked={selectedLayers.includes(layerType)}
+                            onChange={() => toggleLayerSelection(layerType)}
+                          />
+                          <span className="checkbox-custom"></span>
+                          <span className="layer-name">{config.name}</span>
+                          <span className="layer-description">{config.description}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Clear All / Select All */}
+                <div className="layer-dropdown-actions">
+                  <button
+                    onClick={() => {
+                      const allLayers = getAllAvailableLayers();
+                      if (selectedLayers.length === allLayers.length) {
+                        setSelectedLayers(["rgb"]); // Reset to default
+                      } else {
+                        setSelectedLayers(allLayers);
+                      }
+                    }}
+                  >
+                    {selectedLayers.length === getAllAvailableLayers().length
+                      ? "Clear All"
+                      : "Select All"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Selected Layers Tags */}
+          {selectedLayers.length > 0 && (
+            <div className="selected-layers-tags">
+              {selectedLayers.map((layerType, index) => {
+                const config = LAYER_CONFIGS[layerType] || { name: layerType };
+                return (
+                  <span
+                    key={layerType}
+                    className={`layer-tag ${layerType === activeLayerType ? "active" : ""}`}
+                    onClick={() => setActiveLayerType(layerType)}
+                    title={`Click to set as primary layer (for preview/click values)`}
+                  >
+                    <span className="layer-order">{index + 1}</span>
+                    {config.name}
+                    {selectedLayers.length > 1 && (
+                      <button
+                        className="remove-layer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLayerSelection(layerType);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">close</span>
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Opacity Slider (only for map view) */}
+          {useMapView && (
+            <div className="opacity-control">
+              <label>
+                <span className="material-symbols-outlined">opacity</span>
+                Opacity: {Math.round(layerOpacity * 100)}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={layerOpacity}
+                onChange={(e) => setLayerOpacity(parseFloat(e.target.value))}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* Image Display */}
+      {/* Map/Image Display */}
       <div className="drone-image-container">
         {!serverOnline ? (
           <div className="drone-placeholder">
@@ -771,7 +1174,102 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
             <p>Could not load {activeLayerType.toUpperCase()} layer</p>
             <small>Check that the file exists in titiler-local/imagery/</small>
           </div>
+        ) : useMapView && mapBounds && tileUrl ? (
+          /* Interactive Map View */
+          <div className="drone-map-container">
+            {imageLoading && (
+              <div className="image-loading-overlay">
+                <div className="loader"></div>
+              </div>
+            )}
+            <MapContainer
+              bounds={mapBounds}
+              style={{ height: "100%", width: "100%" }}
+              scrollWheelZoom={true}
+              doubleClickZoom={true}
+              maxZoom={24}
+              minZoom={10}
+            >
+              {/* Base map layer - using ESRI satellite which supports higher zoom */}
+              <TileLayer
+                attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                maxZoom={19}
+                maxNativeZoom={19}
+              />
+              {/* Render all selected layers (stacked on top of each other) */}
+              {selectedLayers.map((layerType, index) => {
+                const layerTileUrl = buildTileUrl(layerType);
+                if (!layerTileUrl) return null;
+                return (
+                  <TileLayer
+                    key={layerType}
+                    url={layerTileUrl}
+                    opacity={layerOpacity}
+                    tms={false}
+                    maxZoom={24}
+                    maxNativeZoom={22}
+                    zIndex={100 + index}
+                    eventHandlers={{
+                      load: () => index === 0 && setImageLoading(false),
+                      tileerror: (e) => {
+                        console.error("Tile load error for", layerType, e);
+                      },
+                    }}
+                  />
+                );
+              })}
+              <FitBounds bounds={mapBounds} />
+              <MapClickHandler onClick={handleMapClick} />
+            </MapContainer>
+
+            {/* Point Value Display */}
+            {pointValue && (
+              <div className="point-value-display">
+                <button 
+                  className="close-point-value"
+                  onClick={() => setPointValue(null)}
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+                <div className="point-coords">
+                  <span>Lat: {pointValue.lat}</span>
+                  <span>Lng: {pointValue.lng}</span>
+                </div>
+                <div className="point-values">
+                  {pointValue.values.length > 0 ? (
+                    pointValue.values.map((val, idx) => (
+                      <span key={idx} className="band-value">
+                        {LAYER_CONFIGS[activeLayerType]?.expression 
+                          ? `Value: ${val?.toFixed(4) || 'N/A'}`
+                          : `Band ${idx + 1}: ${val?.toFixed(2) || 'N/A'}`}
+                      </span>
+                    ))
+                  ) : (
+                    <span>No data at this point</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Layer Legend */}
+            {selectedLayers.length > 1 && (
+              <div className="map-layer-legend">
+                <div className="legend-title">Active Layers</div>
+                {selectedLayers.map((layerType, index) => {
+                  const config = LAYER_CONFIGS[layerType] || { name: layerType };
+                  return (
+                    <div key={layerType} className="legend-item">
+                      <span className="legend-order">{index + 1}</span>
+                      <span className="legend-name">{config.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         ) : (
+          /* Static Image Preview */
           <>
             {imageLoading && (
               <div className="image-loading-overlay">
@@ -793,26 +1291,28 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
       </div>
 
       {/* Statistics */}
-      {stats && !imageError && (
+      {layerStats && !imageError && (
         <div className="drone-stats">
-          <div className="stat-item">
-            <span className="stat-label">Min</span>
-            <span className="stat-value">{stats.min?.toFixed(3) || "N/A"}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Max</span>
-            <span className="stat-value">{stats.max?.toFixed(3) || "N/A"}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Mean</span>
-            <span className="stat-value">
-              {stats.mean?.toFixed(3) || "N/A"}
-            </span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Std</span>
-            <span className="stat-value">{stats.std?.toFixed(3) || "N/A"}</span>
-          </div>
+          {Object.entries(layerStats).slice(0, 1).map(([bandKey, bandStats]) => (
+            <React.Fragment key={bandKey}>
+              <div className="stat-item">
+                <span className="stat-label">Min</span>
+                <span className="stat-value">{bandStats.min?.toFixed(3) || "N/A"}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Max</span>
+                <span className="stat-value">{bandStats.max?.toFixed(3) || "N/A"}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Mean</span>
+                <span className="stat-value">{bandStats.mean?.toFixed(3) || "N/A"}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Std</span>
+                <span className="stat-value">{bandStats.std?.toFixed(3) || "N/A"}</span>
+              </div>
+            </React.Fragment>
+          ))}
         </div>
       )}
 
