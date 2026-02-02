@@ -79,9 +79,9 @@ const LoginPage = () => {
                 />
                 <label htmlFor="remember-me">Remember me</label>
               </div>
-              <a className="forgot-password" href="#">
+              <Link className="forgot-password" to="/forgot-password">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* The improved error message will appear here */}

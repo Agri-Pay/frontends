@@ -23,5 +23,6 @@ supabase
 *.njsproj
 *.sln
 *.sw?
+SENTINAL_SETUP.md
 
 frontend-context.md/

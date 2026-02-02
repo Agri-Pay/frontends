@@ -2,6 +2,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoginPage from "./login";
 import SignupPage from "./signup";
+import ForgotPasswordPage from "./forgotpassword";
+import ResetPasswordPage from "./resetpassword";
 import DashboardPage from "./fdashboard"; // Import Dashboard
 import ProtectedRoute from "./protected"; // Import ProtectedRoute
 import CreateFarmPage from "./createfarm";
@@ -51,6 +53,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Protected Dashboard Route */}
           <Route
