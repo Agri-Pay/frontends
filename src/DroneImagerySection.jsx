@@ -20,6 +20,8 @@ import {
   LAYER_CONFIGS,
   isLocalMode,
   isTiTilerConfigured,
+  computeVegetationIndices,
+  getNdviHealthStatus,
 } from "./titiler";
 import {
   uploadDroneImagery,
@@ -41,13 +43,13 @@ import "./droneimagery.css";
 // Helper component to fit map to bounds
 const FitBounds = ({ bounds }) => {
   const map = useMap();
-  
+
   useEffect(() => {
     if (bounds) {
       map.fitBounds(bounds, { padding: [20, 20] });
     }
   }, [bounds, map]);
-  
+
   return null;
 };
 
@@ -60,7 +62,7 @@ const MapClickHandler = ({ onClick }) => {
       }
     },
   });
-  
+
   return null;
 };
 
@@ -87,7 +89,7 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
   const [pointValue, setPointValue] = useState(null);
   const [layerStats, setLayerStats] = useState(null);
   const [useMapView, setUseMapView] = useState(true); // Toggle between map and image view
-  
+
   // Multi-layer selection state
   const [selectedLayers, setSelectedLayers] = useState(["rgb"]); // Array of selected layer types
   const [layerDropdownOpen, setLayerDropdownOpen] = useState(false);
@@ -484,8 +486,8 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
                 progress.step === "processing"
                   ? "processing"
                   : progress.step === "complete"
-                  ? "completed"
-                  : "uploading",
+                    ? "completed"
+                    : "uploading",
               progress: progress.progress || 0,
             })
             .eq("id", job.id);
@@ -617,12 +619,12 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
   // Get filename for the current flight (used by tile URL and other functions)
   const getCurrentFilename = useCallback(() => {
     if (!selectedFlight) return null;
-    
+
     // Get filename from bands (for multi-band files like MicaSense)
     if (selectedFlight.bands && selectedFlight.bands.length > 0) {
       return selectedFlight.bands[0]?.filename;
     }
-    
+
     // Fallback: try to find from layersData
     const layerData = selectedFlight.layersData?.find(
       (l) => l.layer_type === activeLayerType
@@ -633,12 +635,12 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
   // Build tile URL for Leaflet map (for a specific layer type)
   const buildTileUrl = useCallback((layerType = activeLayerType) => {
     if (!selectedFlight || !serverOnline) return null;
-    
+
     const filename = getCurrentFilename();
     if (!filename) return null;
-    
+
     const config = LAYER_CONFIGS[layerType] || {};
-    
+
     return getTileUrl(filename, {
       bidx: config.bidx,
       expression: config.expression,
@@ -656,20 +658,20 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
       setLayerStats(null);
       return;
     }
-    
+
     const filename = getCurrentFilename();
     if (!filename) {
       setTileUrl(null);
       return;
     }
-    
+
     // Build tile URL for primary layer (first selected layer)
     const primaryLayer = selectedLayers[0] || activeLayerType;
     const url = buildTileUrl(primaryLayer);
     setTileUrl(url);
     setImageError(false);
     setImageLoading(true);
-    
+
     // Fetch bounds
     const loadBounds = async () => {
       try {
@@ -686,7 +688,7 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
         setImageLoading(false);
       }
     };
-    
+
     // Fetch statistics
     const loadStats = async () => {
       try {
@@ -696,24 +698,29 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
         console.error("Error loading statistics:", error);
       }
     };
-    
+
     loadBounds();
     loadStats();
   }, [selectedFlight, serverOnline, activeLayerType, selectedLayers, getCurrentFilename, buildTileUrl]);
 
-  // Handle point value click
+  // Handle point value click - computes vegetation indices from band values
   const handleMapClick = useCallback(async (lat, lng) => {
     if (!selectedFlight || !serverOnline) return;
-    
+
     const filename = getCurrentFilename();
     if (!filename) return;
-    
+
     try {
       const result = await getPointValue(filename, lat, lng);
+      const indices = computeVegetationIndices(result.values);
+      const healthStatus = indices ? getNdviHealthStatus(indices.ndvi) : null;
+
       setPointValue({
         lat: lat.toFixed(6),
         lng: lng.toFixed(6),
-        values: result.values || [],
+        indices: indices,
+        healthStatus: healthStatus,
+        isNoData: indices === null,
       });
     } catch (error) {
       console.error("Error getting point value:", error);
@@ -751,11 +758,17 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
 
     // If we have bands, show composite and index options
     if (selectedFlight.bands && selectedFlight.bands.length >= 5) {
-      // For MicaSense with 5+ bands, show full range of options
+      // For 10-band MicaSense, show all band options
       return {
         composites: ["rgb", "cir", "nrg"],
         indices: ["ndvi", "ndre", "gndvi"],
-        bands: ["blue", "green", "red", "rededge", "nir"],
+        bands: [
+          "blue444", "blue",       // Blue bands (1, 2)
+          "green531", "green",     // Green bands (3, 4)
+          "red650", "red",         // Red bands (5, 6)
+          "rededge705", "rededge", "rededge740", // Red Edge bands (7, 8, 9)
+          "nir"                    // NIR band (10)
+        ],
       };
     }
 
@@ -764,7 +777,7 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
       return {
         composites: selectedFlight.layers.filter(l => ["rgb", "cir", "nrg"].includes(l)),
         indices: selectedFlight.layers.filter(l => ["ndvi", "ndre", "gndvi", "moisture", "thermal", "lai"].includes(l)),
-        bands: selectedFlight.layers.filter(l => ["blue", "green", "red", "rededge", "nir"].includes(l)),
+        bands: selectedFlight.layers.filter(l => ["blue444", "blue", "green531", "green", "red650", "red", "rededge705", "rededge", "rededge740", "nir"].includes(l)),
       };
     }
 
@@ -1187,14 +1200,14 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
               style={{ height: "100%", width: "100%" }}
               scrollWheelZoom={true}
               doubleClickZoom={true}
-              maxZoom={24}
+              maxZoom={28}
               minZoom={10}
             >
               {/* Base map layer - using ESRI satellite which supports higher zoom */}
               <TileLayer
                 attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                maxZoom={19}
+                maxZoom={23}
                 maxNativeZoom={19}
               />
               {/* Render all selected layers (stacked on top of each other) */}
@@ -1207,8 +1220,8 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
                     url={layerTileUrl}
                     opacity={layerOpacity}
                     tms={false}
-                    maxZoom={24}
-                    maxNativeZoom={22}
+                    maxZoom={28}
+                    maxNativeZoom={24}
                     zIndex={100 + index}
                     eventHandlers={{
                       load: () => index === 0 && setImageLoading(false),
@@ -1223,32 +1236,66 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
               <MapClickHandler onClick={handleMapClick} />
             </MapContainer>
 
-            {/* Point Value Display */}
+            {/* Point Value Display - Vegetation Indices */}
             {pointValue && (
               <div className="point-value-display">
-                <button 
+                <button
                   className="close-point-value"
                   onClick={() => setPointValue(null)}
+                  title="Close"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
-                <div className="point-coords">
-                  <span>Lat: {pointValue.lat}</span>
-                  <span>Lng: {pointValue.lng}</span>
+
+                <div className="point-header">
+                  <span className="material-symbols-outlined">location_on</span>
+                  <span className="coords-text">
+                    {pointValue.lat}, {pointValue.lng}
+                  </span>
                 </div>
-                <div className="point-values">
-                  {pointValue.values.length > 0 ? (
-                    pointValue.values.map((val, idx) => (
-                      <span key={idx} className="band-value">
-                        {LAYER_CONFIGS[activeLayerType]?.expression 
-                          ? `Value: ${val?.toFixed(4) || 'N/A'}`
-                          : `Band ${idx + 1}: ${val?.toFixed(2) || 'N/A'}`}
-                      </span>
-                    ))
-                  ) : (
-                    <span>No data at this point</span>
-                  )}
-                </div>
+
+                {pointValue.isNoData ? (
+                  <div className="point-nodata">
+                    <span className="material-symbols-outlined">block</span>
+                    <span>No data at this location</span>
+                  </div>
+                ) : pointValue.indices ? (
+                  <>
+                    {/* Health Status Badge */}
+                    <div
+                      className="health-status-badge"
+                      style={{ backgroundColor: pointValue.healthStatus?.color }}
+                    >
+                      {pointValue.healthStatus?.label}
+                    </div>
+
+                    {/* Vegetation Indices Grid */}
+                    <div className="indices-grid">
+                      <div className="index-item">
+                        <span className="index-label">NDVI</span>
+                        <span className="index-value">
+                          {pointValue.indices.ndvi?.toFixed(3) ?? "N/A"}
+                        </span>
+                      </div>
+                      <div className="index-item">
+                        <span className="index-label">NDRE</span>
+                        <span className="index-value">
+                          {pointValue.indices.ndre?.toFixed(3) ?? "N/A"}
+                        </span>
+                      </div>
+                      <div className="index-item">
+                        <span className="index-label">GNDVI</span>
+                        <span className="index-value">
+                          {pointValue.indices.gndvi?.toFixed(3) ?? "N/A"}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="point-nodata">
+                    <span>Click on imagery to see values</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1534,9 +1581,8 @@ const DroneImagerySection = ({ farmId, farmName = "Farm" }) => {
                   <>
                     <div className="webodm-status">
                       <span
-                        className={`status-indicator ${
-                          webodmOnline ? "online" : "offline"
-                        }`}
+                        className={`status-indicator ${webodmOnline ? "online" : "offline"
+                          }`}
                       ></span>
                       <span>WebODM: {webodmOnline ? "Online" : "Offline"}</span>
                       {!webodmOnline && (

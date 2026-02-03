@@ -187,19 +187,24 @@ export const getExpressionPreviewUrl = (filename, expression, options = {}) => {
 
 /**
  * Predefined layer configurations
- * For MicaSense RedEdge-MX bands:
- *   Band 1: Blue (475nm)
- *   Band 2: Green (560nm)
- *   Band 3: Red (668nm)
- *   Band 4: Red Edge (717nm)
- *   Band 5: NIR (840nm)
+ * For 10-band MicaSense imagery:
+ *   Band 1: Blue-444 (444nm)
+ *   Band 2: Blue (475nm)
+ *   Band 3: Green-531 (531nm)
+ *   Band 4: Green (560nm)
+ *   Band 5: Red-650 (650nm)
+ *   Band 6: Red (668nm)
+ *   Band 7: Red Edge 705 (705nm)
+ *   Band 8: Red Edge (717nm)
+ *   Band 9: Red Edge 740 (740nm)
+ *   Band 10: NIR (842nm)
  */
 export const LAYER_CONFIGS = {
   // === Band Composites ===
   rgb: {
     name: "True Color (RGB)",
     description: "Red, Green, Blue composite",
-    bidx: "3,2,1", // Red, Green, Blue
+    bidx: "5,3,1", // Red-650, Green-531, Blue-444
     rescale: "0,10000", // Based on percentile_2 to percentile_98 from stats
     colormap: null,
     expression: null,
@@ -208,7 +213,7 @@ export const LAYER_CONFIGS = {
   cir: {
     name: "False Color (CIR)",
     description: "Color Infrared - vegetation appears red",
-    bidx: "5,3,2", // NIR, Red, Green
+    bidx: "10,5,3", // NIR, Red-650, Green-531
     rescale: "0,15000",
     colormap: null,
     expression: null,
@@ -217,7 +222,7 @@ export const LAYER_CONFIGS = {
   nrg: {
     name: "NIR-RedEdge-Green",
     description: "Highlights vegetation stress",
-    bidx: "5,4,2", // NIR, Red Edge, Green
+    bidx: "10,7,3", // NIR, Red Edge 705, Green-531
     rescale: "0,15000",
     colormap: null,
     expression: null,
@@ -225,46 +230,91 @@ export const LAYER_CONFIGS = {
   },
 
   // === Individual Bands ===
-  blue: {
-    name: "Blue Band",
-    description: "475nm - Coastal/Aerosol",
+  blue444: {
+    name: "Blue 444nm",
+    description: "444nm - Deep Blue",
     bidx: "1",
     rescale: "500,5000",
     colormap: "blues",
     expression: null,
     nodata: 65535,
   },
-  green: {
-    name: "Green Band",
-    description: "560nm - Visible Green",
+  blue: {
+    name: "Blue 475nm",
+    description: "475nm - Blue",
     bidx: "2",
+    rescale: "500,5000",
+    colormap: "blues",
+    expression: null,
+    nodata: 65535,
+  },
+  green531: {
+    name: "Green 531nm",
+    description: "531nm - Green",
+    bidx: "3",
     rescale: "500,5000",
     colormap: "greens",
     expression: null,
     nodata: 65535,
   },
-  red: {
-    name: "Red Band",
-    description: "668nm - Visible Red",
-    bidx: "3",
+  green: {
+    name: "Green 560nm",
+    description: "560nm - Green",
+    bidx: "4",
+    rescale: "500,5000",
+    colormap: "greens",
+    expression: null,
+    nodata: 65535,
+  },
+  red650: {
+    name: "Red 650nm",
+    description: "650nm - Red",
+    bidx: "5",
     rescale: "500,8000",
     colormap: "reds",
     expression: null,
     nodata: 65535,
   },
+  red: {
+    name: "Red 668nm",
+    description: "668nm - Red",
+    bidx: "6",
+    rescale: "500,8000",
+    colormap: "reds",
+    expression: null,
+    nodata: 65535,
+  },
+  rededge705: {
+    name: "Red Edge 705nm",
+    description: "705nm - Red Edge",
+    bidx: "7",
+    rescale: "500,10000",
+    colormap: "oranges",
+    expression: null,
+    nodata: 65535,
+  },
   rededge: {
-    name: "Red Edge Band",
-    description: "717nm - Vegetation stress",
-    bidx: "4",
+    name: "Red Edge 717nm",
+    description: "717nm - Red Edge",
+    bidx: "8",
+    rescale: "500,10000",
+    colormap: "oranges",
+    expression: null,
+    nodata: 65535,
+  },
+  rededge740: {
+    name: "Red Edge 740nm",
+    description: "740nm - Red Edge",
+    bidx: "9",
     rescale: "500,10000",
     colormap: "oranges",
     expression: null,
     nodata: 65535,
   },
   nir: {
-    name: "NIR Band",
-    description: "840nm - Vegetation health",
-    bidx: "5",
+    name: "NIR 842nm",
+    description: "842nm - Near Infrared",
+    bidx: "10",
     rescale: "500,15000",
     colormap: "purples",
     expression: null,
@@ -278,8 +328,8 @@ export const LAYER_CONFIGS = {
     bidx: null,
     rescale: "-0.5,1",
     colormap: "rdylgn",
-    expression: "(b5-b3)/(b5+b3)", // (NIR - Red) / (NIR + Red)
-    // Note: nodata not set for expressions - TiTiler handles mask from source
+    expression: "(b10-b5)/(b10+b5)", // (NIR - Red650) / (NIR + Red650)
+    nodata: 65535, // Mask nodata pixels for transparency
   },
   ndre: {
     name: "NDRE",
@@ -287,7 +337,8 @@ export const LAYER_CONFIGS = {
     bidx: null,
     rescale: "-0.5,1",
     colormap: "rdylgn",
-    expression: "(b5-b4)/(b5+b4)", // (NIR - RedEdge) / (NIR + RedEdge)
+    expression: "(b10-b7)/(b10+b7)", // (NIR - RedEdge705) / (NIR + RedEdge705)
+    nodata: 65535, // Mask nodata pixels for transparency
   },
   gndvi: {
     name: "GNDVI",
@@ -295,7 +346,8 @@ export const LAYER_CONFIGS = {
     bidx: null,
     rescale: "-0.5,1",
     colormap: "rdylgn",
-    expression: "(b5-b2)/(b5+b2)", // (NIR - Green) / (NIR + Green)
+    expression: "(b10-b3)/(b10+b3)", // (NIR - Green531) / (NIR + Green531)
+    nodata: 65535, // Mask nodata pixels for transparency
   },
 
   // === Legacy configs (for backwards compatibility) ===
@@ -323,14 +375,61 @@ export const LAYER_CONFIGS = {
 };
 
 /**
- * MicaSense band definitions for UI
+ * 10-band MicaSense band definitions for UI
  */
 export const MICASENSE_BANDS = {
-  1: { name: "Blue", wavelength: "475 nm", color: "#0066ff" },
-  2: { name: "Green", wavelength: "560 nm", color: "#00cc00" },
-  3: { name: "Red", wavelength: "668 nm", color: "#ff0000" },
-  4: { name: "Red Edge", wavelength: "717 nm", color: "#ff6600" },
-  5: { name: "NIR", wavelength: "840 nm", color: "#990099" },
+  1: { name: "Blue 444", wavelength: "444 nm", color: "#0044cc" },
+  2: { name: "Blue", wavelength: "475 nm", color: "#0066ff" },
+  3: { name: "Green 531", wavelength: "531 nm", color: "#00aa00" },
+  4: { name: "Green", wavelength: "560 nm", color: "#00cc00" },
+  5: { name: "Red 650", wavelength: "650 nm", color: "#dd0000" },
+  6: { name: "Red", wavelength: "668 nm", color: "#ff0000" },
+  7: { name: "Red Edge 705", wavelength: "705 nm", color: "#ff4400" },
+  8: { name: "Red Edge", wavelength: "717 nm", color: "#ff6600" },
+  9: { name: "Red Edge 740", wavelength: "740 nm", color: "#ff8800" },
+  10: { name: "NIR", wavelength: "842 nm", color: "#990099" },
+};
+
+/**
+ * Compute vegetation indices from raw 10-band MicaSense values
+ * @param {Array<number>} values - Array of 10 band values [b1, b2, ..., b10]
+ * @returns {Object|null} Object with computed indices or null if nodata
+ */
+export const computeVegetationIndices = (values) => {
+  if (!values || values.length < 10) return null;
+
+  const [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10] = values;
+
+  // Check for nodata (65535 indicates no data in MicaSense imagery)
+  if (b5 === 65535 || b10 === 65535 || b3 === 65535 || b7 === 65535) {
+    return null;
+  }
+
+  // Check for division by zero
+  const ndviDenom = b10 + b5;
+  const ndreDenom = b10 + b7;
+  const gndviDenom = b10 + b3;
+
+  return {
+    ndvi: ndviDenom !== 0 ? (b10 - b5) / ndviDenom : null,
+    ndre: ndreDenom !== 0 ? (b10 - b7) / ndreDenom : null,
+    gndvi: gndviDenom !== 0 ? (b10 - b3) / gndviDenom : null,
+  };
+};
+
+/**
+ * Get health status description based on NDVI value
+ * @param {number} ndvi - NDVI value (-1 to 1)
+ * @returns {Object} Object with status label and color
+ */
+export const getNdviHealthStatus = (ndvi) => {
+  if (ndvi === null || ndvi === undefined) return { label: "No Data", color: "#888" };
+  if (ndvi < 0) return { label: "Water/Shadow", color: "#2c3e50" };
+  if (ndvi < 0.1) return { label: "Bare Soil", color: "#a0522d" };
+  if (ndvi < 0.2) return { label: "Sparse", color: "#daa520" };
+  if (ndvi < 0.4) return { label: "Moderate", color: "#9acd32" };
+  if (ndvi < 0.6) return { label: "Healthy", color: "#228b22" };
+  return { label: "Very Healthy", color: "#006400" };
 };
 
 /**
