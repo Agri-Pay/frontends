@@ -78,6 +78,117 @@ const coordsToGeoJSON = (coords) => {
   };
 };
 
+
+/**
+ * Get available imagery dates with cloud cover for a farm polygon
+ * Returns dates sorted by most recent first, with quality indicators
+ * @param {Array} coords - Array of {lat, lng} coordinates
+ * @param {number} days - Number of days to look back (default 180 = 6 months)
+ * @returns {Promise<{dates: Array<{date: string, cloudCover: number, quality: string}>}>}
+ */
+export const getAvailableDates = async (coords, days = 180) => {
+  const token = await getAccessToken();
+  const bbox = coordsToBBox(coords);
+
+  const endDate = new Date().toISOString().split("T")[0];
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const searchBody = {
+    bbox: bbox,
+    datetime: `${startDate}T00:00:00Z/${endDate}T23:59:59Z`,
+    collections: ["sentinel-2-l2a"],
+    limit: 100, // Get up to 100 scenes
+    fields: {
+      include: ["properties.datetime", "properties.eo:cloud_cover"],
+    },
+  };
+
+  const response = await fetch(
+    `${SENTINEL_API_BASE}/api/v1/catalog/1.0.0/search`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(searchBody),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Sentinel Dates Search Error:", response.status, errorText);
+    throw new Error(`Failed to get available dates: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Parse features into dates array
+  const datesMap = new Map(); // Use map to deduplicate by date
+
+  (data.features || []).forEach((feature) => {
+    const datetime = feature.properties?.datetime;
+    const cloudCover = feature.properties?.["eo:cloud_cover"] ?? 100;
+
+    if (datetime) {
+      const dateStr = datetime.split("T")[0]; // Extract YYYY-MM-DD
+
+      // Keep the lowest cloud cover for each date
+      const existing = datesMap.get(dateStr);
+      if (!existing || cloudCover < existing.cloudCover) {
+        datesMap.set(dateStr, {
+          date: dateStr,
+          cloudCover: Math.round(cloudCover * 10) / 10, // Round to 1 decimal
+          quality: getCloudQuality(cloudCover),
+        });
+      }
+    }
+  });
+
+  // Convert to array and sort by date (most recent first)
+  const dates = Array.from(datesMap.values()).sort(
+    (a, b) => new Date(b.date) - new Date(a.date)
+  );
+
+  console.log("Sentinel Available Dates:", dates);
+  return { dates };
+};
+
+/**
+ * Get cloud cover quality rating
+ * @param {number} cloudCover - Cloud cover percentage
+ * @returns {string} Quality rating: 'excellent' | 'good' | 'moderate' | 'poor'
+ */
+const getCloudQuality = (cloudCover) => {
+  if (cloudCover <= 15) return "excellent";
+  if (cloudCover <= 30) return "good";
+  if (cloudCover <= 50) return "moderate";
+  return "poor";
+};
+
+/**
+ * Build time range for Process API
+ * @param {string|null} date - Specific date (YYYY-MM-DD) or null for most recent
+ * @param {number} fallbackDays - Days to look back if no date specified
+ * @returns {{from: string, to: string}}
+ */
+const buildTimeRange = (date, fallbackDays = 30) => {
+  if (date) {
+    // Use specific date: entire day
+    return {
+      from: `${date}T00:00:00Z`,
+      to: `${date}T23:59:59Z`,
+    };
+  }
+  // Fallback: last N days
+  return {
+    from: new Date(Date.now() - fallbackDays * 24 * 60 * 60 * 1000).toISOString(),
+    to: new Date().toISOString(),
+  };
+};
+
 /**
  * Search for available Sentinel-2 scenes for a given area
  */
@@ -126,10 +237,17 @@ export const searchSentinelScenes = async (coords, days = 30) => {
 
 /**
  * Get NDVI image from Sentinel-2
+ * @param {Array} coords - Array of {lat, lng} coordinates
+ * @param {number} width - Image width in pixels
+ * @param {number} height - Image height in pixels
+ * @param {string|null} date - Optional specific date (YYYY-MM-DD)
  */
-export const getSentinelNDVI = async (coords, width = 512, height = 512) => {
+export const getSentinelNDVI = async (coords, width = 512, height = 512, date = null) => {
   const token = await getAccessToken();
   const bbox = coordsToBBox(coords);
+  const timeRange = buildTimeRange(date, 30);
+  // If user specified a date, accept any cloud cover; otherwise limit to 30%
+  const maxCloudCoverage = date ? 100 : 30;
 
   const evalscript = `
     //VERSION=3
@@ -166,13 +284,8 @@ export const getSentinelNDVI = async (coords, width = 512, height = 512) => {
         {
           type: "sentinel-2-l2a",
           dataFilter: {
-            timeRange: {
-              from: new Date(
-                Date.now() - 30 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-              to: new Date().toISOString(),
-            },
-            maxCloudCoverage: 30,
+            timeRange: timeRange,
+            maxCloudCoverage: maxCloudCoverage,
           },
           processing: { harmonizeValues: true },
         },
@@ -208,14 +321,21 @@ export const getSentinelNDVI = async (coords, width = 512, height = 512) => {
 
 /**
  * Get True Color (RGB) image from Sentinel-2
+ * @param {Array} coords - Array of {lat, lng} coordinates
+ * @param {number} width - Image width in pixels
+ * @param {number} height - Image height in pixels
+ * @param {string|null} date - Optional specific date (YYYY-MM-DD)
  */
 export const getSentinelTrueColor = async (
   coords,
   width = 512,
-  height = 512
+  height = 512,
+  date = null
 ) => {
   const token = await getAccessToken();
   const bbox = coordsToBBox(coords);
+  const timeRange = buildTimeRange(date, 30);
+  const maxCloudCoverage = date ? 100 : 30;
 
   const evalscript = `
     //VERSION=3
@@ -241,13 +361,8 @@ export const getSentinelTrueColor = async (
         {
           type: "sentinel-2-l2a",
           dataFilter: {
-            timeRange: {
-              from: new Date(
-                Date.now() - 30 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-              to: new Date().toISOString(),
-            },
-            maxCloudCoverage: 30,
+            timeRange: timeRange,
+            maxCloudCoverage: maxCloudCoverage,
           },
         },
       ],
@@ -282,10 +397,16 @@ export const getSentinelTrueColor = async (
 
 /**
  * Get SAVI (Soil Adjusted Vegetation Index) - better for sparse vegetation
+ * @param {Array} coords - Array of {lat, lng} coordinates
+ * @param {number} width - Image width in pixels
+ * @param {number} height - Image height in pixels
+ * @param {string|null} date - Optional specific date (YYYY-MM-DD)
  */
-export const getSentinelSAVI = async (coords, width = 512, height = 512) => {
+export const getSentinelSAVI = async (coords, width = 512, height = 512, date = null) => {
   const token = await getAccessToken();
   const bbox = coordsToBBox(coords);
+  const timeRange = buildTimeRange(date, 30);
+  const maxCloudCoverage = date ? 100 : 30;
 
   const evalscript = `
     //VERSION=3
@@ -321,13 +442,8 @@ export const getSentinelSAVI = async (coords, width = 512, height = 512) => {
         {
           type: "sentinel-2-l2a",
           dataFilter: {
-            timeRange: {
-              from: new Date(
-                Date.now() - 30 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-              to: new Date().toISOString(),
-            },
-            maxCloudCoverage: 30,
+            timeRange: timeRange,
+            maxCloudCoverage: maxCloudCoverage,
           },
         },
       ],
@@ -362,14 +478,21 @@ export const getSentinelSAVI = async (coords, width = 512, height = 512) => {
 
 /**
  * Get Moisture Index (NDWI/NDMI) - for water stress detection
+ * @param {Array} coords - Array of {lat, lng} coordinates
+ * @param {number} width - Image width in pixels
+ * @param {number} height - Image height in pixels
+ * @param {string|null} date - Optional specific date (YYYY-MM-DD)
  */
 export const getSentinelMoisture = async (
   coords,
   width = 512,
-  height = 512
+  height = 512,
+  date = null
 ) => {
   const token = await getAccessToken();
   const bbox = coordsToBBox(coords);
+  const timeRange = buildTimeRange(date, 30);
+  const maxCloudCoverage = date ? 100 : 30;
 
   const evalscript = `
     //VERSION=3
@@ -404,13 +527,8 @@ export const getSentinelMoisture = async (
         {
           type: "sentinel-2-l2a",
           dataFilter: {
-            timeRange: {
-              from: new Date(
-                Date.now() - 30 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-              to: new Date().toISOString(),
-            },
-            maxCloudCoverage: 30,
+            timeRange: timeRange,
+            maxCloudCoverage: maxCloudCoverage,
           },
         },
       ],
@@ -445,10 +563,16 @@ export const getSentinelMoisture = async (
 
 /**
  * Get LAI (Leaf Area Index) - crop growth indicator
+ * @param {Array} coords - Array of {lat, lng} coordinates
+ * @param {number} width - Image width in pixels
+ * @param {number} height - Image height in pixels
+ * @param {string|null} date - Optional specific date (YYYY-MM-DD)
  */
-export const getSentinelLAI = async (coords, width = 512, height = 512) => {
+export const getSentinelLAI = async (coords, width = 512, height = 512, date = null) => {
   const token = await getAccessToken();
   const bbox = coordsToBBox(coords);
+  const timeRange = buildTimeRange(date, 30);
+  const maxCloudCoverage = date ? 100 : 30;
 
   const evalscript = `
     //VERSION=3
@@ -486,13 +610,8 @@ export const getSentinelLAI = async (coords, width = 512, height = 512) => {
         {
           type: "sentinel-2-l2a",
           dataFilter: {
-            timeRange: {
-              from: new Date(
-                Date.now() - 30 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-              to: new Date().toISOString(),
-            },
-            maxCloudCoverage: 30,
+            timeRange: timeRange,
+            maxCloudCoverage: maxCloudCoverage,
           },
         },
       ],
@@ -523,6 +642,152 @@ export const getSentinelLAI = async (coords, width = 512, height = 512) => {
 
   const blob = await response.blob();
   return URL.createObjectURL(blob);
+};
+
+/**
+ * Get vegetation index values at a specific point (for click-to-value feature)
+ * Uses the Statistical API to get mean values for a small bbox around the point
+ * @param {number} lat - Latitude of the clicked point
+ * @param {number} lng - Longitude of the clicked point
+ * @param {string|null} date - Optional specific date (YYYY-MM-DD)
+ * @returns {Promise<{ndvi: number, savi: number, moisture: number, health: string}>}
+ */
+export const getPointStats = async (lat, lng, date = null) => {
+  const token = await getAccessToken();
+  const timeRange = buildTimeRange(date, 30);
+
+  // Create a small bbox around the point (~22m buffer at equator)
+  // Sentinel-2 has 10m resolution, so this covers a few pixels for averaging
+  const buffer = 0.0002;
+  const bbox = [lng - buffer, lat - buffer, lng + buffer, lat + buffer];
+
+  // Evalscript for Statistical API - must have separate outputs with IDs
+  // and a dataMask output to exclude invalid pixels
+  const evalscript = `
+//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["B04", "B08", "B11", "dataMask"] }],
+    output: [
+      { id: "ndvi", bands: 1, sampleType: "FLOAT32" },
+      { id: "savi", bands: 1, sampleType: "FLOAT32" },
+      { id: "moisture", bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask", bands: 1 }
+    ]
+  };
+}
+
+function evaluatePixel(samples) {
+  // NDVI = (NIR - Red) / (NIR + Red)
+  let ndvi = (samples.B08 - samples.B04) / (samples.B08 + samples.B04 + 0.0001);
+  
+  // SAVI = ((NIR - Red) / (NIR + Red + L)) * (1 + L), L = 0.5
+  let L = 0.5;
+  let savi = ((samples.B08 - samples.B04) / (samples.B08 + samples.B04 + L)) * (1 + L);
+  
+  // NDMI (Moisture) = (NIR - SWIR) / (NIR + SWIR)
+  let moisture = (samples.B08 - samples.B11) / (samples.B08 + samples.B11 + 0.0001);
+  
+  return {
+    ndvi: [ndvi],
+    savi: [savi],
+    moisture: [moisture],
+    dataMask: [samples.dataMask]
+  };
+}
+`;
+
+  // Statistical API request body - different structure from Process API
+  const requestBody = {
+    input: {
+      bounds: {
+        bbox: bbox,
+        properties: { crs: "http://www.opengis.net/def/crs/EPSG/0/4326" },
+      },
+      data: [
+        {
+          type: "sentinel-2-l2a",
+          dataFilter: {
+            mosaickingOrder: "leastRecent",
+          },
+        },
+      ],
+    },
+    aggregation: {
+      timeRange: timeRange,
+      aggregationInterval: { of: "P1D" },
+      evalscript: evalscript,
+      resx: 10,
+      resy: 10,
+    },
+  };
+
+  try {
+    // Use Statistical API endpoint, NOT Process API
+    const response = await fetch(`${SENTINEL_API_BASE}/api/v1/statistics`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Sentinel Point Stats Error:", response.status, errorText);
+      throw new Error(`Failed to get point stats: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Sentinel Point Stats Raw:", data);
+
+    // Parse Statistical API response format:
+    // { data: [{ interval: {...}, outputs: { ndvi: { bands: { B0: { stats: { mean: ... } } } } } }] }
+    if (data.data && data.data.length > 0) {
+      // Get the most recent interval
+      const latest = data.data[data.data.length - 1];
+
+      // Extract mean values from each output
+      const ndvi = latest.outputs?.ndvi?.bands?.B0?.stats?.mean ?? null;
+      const savi = latest.outputs?.savi?.bands?.B0?.stats?.mean ?? null;
+      const moisture = latest.outputs?.moisture?.bands?.B0?.stats?.mean ?? null;
+
+      // Check if we have valid data
+      if (ndvi !== null) {
+        return {
+          lat: lat,
+          lng: lng,
+          ndvi: Math.round(ndvi * 1000) / 1000,
+          savi: savi !== null ? Math.round(savi * 1000) / 1000 : null,
+          moisture: moisture !== null ? Math.round(moisture * 1000) / 1000 : null,
+          health: getNdviHealthStatus(ndvi),
+        };
+      }
+    }
+
+    console.warn("No valid data in point stats response:", data);
+    return { lat, lng, ndvi: null, savi: null, moisture: null, health: "No Data" };
+  } catch (error) {
+    console.error("Error getting point stats:", error);
+    return { lat, lng, ndvi: null, savi: null, moisture: null, health: "Error" };
+  }
+};
+
+/**
+ * Get health status label from NDVI value
+ * @param {number|null} ndvi - NDVI value
+ * @returns {string} Health status label
+ */
+const getNdviHealthStatus = (ndvi) => {
+  if (ndvi === null || ndvi === undefined) return "Unknown";
+  if (ndvi < -0.1) return "Water/Shadow";
+  if (ndvi < 0.1) return "Bare Soil";
+  if (ndvi < 0.2) return "Sparse";
+  if (ndvi < 0.4) return "Moderate";
+  if (ndvi < 0.6) return "Healthy";
+  return "Very Healthy";
 };
 
 /**

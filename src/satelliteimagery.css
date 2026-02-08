@@ -1,0 +1,493 @@
+/* Satellite Imagery Section Styles */
+
+.satellite-imagery-card {
+    grid-column: span 2;
+    min-height: 500px;
+}
+
+.satellite-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.satellite-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.satellite-header .header-icon {
+    color: #0ea5e9;
+    font-size: 1.3rem;
+}
+
+/* Controls Row */
+.satellite-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.satellite-controls .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.satellite-controls .control-group label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Index Buttons */
+.index-buttons {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.index-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #64748b;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.index-btn:hover {
+    border-color: #0ea5e9;
+    color: #0ea5e9;
+    background: #f0f9ff;
+}
+
+.index-btn.active {
+    background: #0ea5e9;
+    border-color: #0ea5e9;
+    color: white;
+}
+
+.index-btn .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+.index-btn .btn-label {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .index-btn .btn-label {
+        display: inline;
+    }
+}
+
+/* Date Dropdown */
+.date-control {
+    flex: 1;
+    min-width: 180px;
+}
+
+.date-dropdown-container {
+    position: relative;
+}
+
+.date-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #334155;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.date-dropdown-trigger:hover {
+    border-color: #0ea5e9;
+}
+
+.date-dropdown-trigger:disabled {
+    background: #f8fafc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.date-dropdown-trigger .selected-date {
+    font-weight: 500;
+}
+
+.date-dropdown-trigger .cloud-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.date-dropdown-trigger .dropdown-arrow {
+    font-size: 1.2rem;
+    color: #94a3b8;
+}
+
+.date-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+}
+
+.date-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: #334155;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    text-align: left;
+}
+
+.date-option:hover {
+    background: #f1f5f9;
+}
+
+.date-option.selected {
+    background: #e0f2fe;
+}
+
+.date-option.poor-quality {
+    opacity: 0.6;
+}
+
+.date-option.poor-quality .date-text {
+    color: #94a3b8;
+}
+
+.date-option .cloud-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.date-option .cloud-icon {
+    font-size: 0.9rem;
+}
+
+.date-option .cloud-percent {
+    font-size: 0.75rem;
+    color: #64748b;
+    min-width: 28px;
+}
+
+.date-option .quality-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+/* Opacity Control */
+.opacity-control {
+    min-width: 120px;
+}
+
+.opacity-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.opacity-slider {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #e2e8f0;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #0ea5e9;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.opacity-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #0ea5e9;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.opacity-value {
+    font-size: 0.75rem;
+    color: #64748b;
+    min-width: 36px;
+    text-align: right;
+}
+
+/* Map Container */
+.satellite-map-container {
+    position: relative;
+    height: 400px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #1e293b;
+}
+
+.satellite-map {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Loading and Error Overlays */
+.map-loading-overlay,
+.map-error-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(30, 41, 59, 0.85);
+    color: white;
+    z-index: 100;
+}
+
+.map-loading-overlay .loader {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #0ea5e9;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.map-error-overlay {
+    background: rgba(239, 68, 68, 0.9);
+}
+
+.map-error-overlay .material-symbols-outlined {
+    font-size: 2rem;
+}
+
+/* Point Value Display for Satellite */
+.satellite-point {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 180px;
+    max-width: 200px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.satellite-point .close-point-value {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: #f1f5f9;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.satellite-point .close-point-value:hover {
+    background: #e2e8f0;
+}
+
+.satellite-point .close-point-value .material-symbols-outlined {
+    font-size: 0.9rem;
+    color: #64748b;
+}
+
+.satellite-point .point-loading,
+.satellite-point .point-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.satellite-point .loader.small {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+.satellite-point .health-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.satellite-point .point-coords {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-bottom: 10px;
+    font-family: "Roboto Mono", monospace;
+}
+
+.satellite-point .indices-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.satellite-point .index-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.satellite-point .index-label {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.satellite-point .index-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+    font-family: "Roboto Mono", monospace;
+}
+
+/* Scene Info Footer */
+.scene-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.scene-info .material-symbols-outlined {
+    font-size: 1rem;
+    color: #94a3b8;
+}
+
+/* Satellite placeholder */
+.satellite-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: #94a3b8;
+    gap: 12px;
+}
+
+.satellite-placeholder .material-symbols-outlined {
+    font-size: 3rem;
+    opacity: 0.5;
+}
+
+.satellite-placeholder p {
+    font-size: 0.9rem;
+}
+
+/* Loader animation */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .satellite-imagery-card {
+        grid-column: span 1;
+    }
+
+    .satellite-controls {
+        flex-direction: column;
+    }
+
+    .satellite-map-container {
+        height: 300px;
+    }
+
+    .satellite-point {
+        max-width: 160px;
+        padding: 10px;
+    }
+
+    .satellite-point .indices-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

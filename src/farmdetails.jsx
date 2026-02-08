@@ -240,15 +240,11 @@ import {
   getUviForPolygon,
 } from "./agromonitoring";
 import {
-  getSentinelTrueColor,
-  getSentinelNDVI,
-  getSentinelSAVI,
-  getSentinelMoisture,
-  getSentinelLAI,
   getVegetationStats,
   getVegetationHistory,
 } from "./sentinelhub";
 import DroneImagerySection from "./DroneImagerySection";
+import SatelliteImagerySection from "./SatelliteImagerySection";
 import { toast } from "react-hot-toast";
 
 // Import Chart.js components
@@ -412,15 +408,7 @@ const FarmDetailsPage = () => {
   const [currentWeather, setCurrentWeather] = useState(null);
   const [uvi, setUvi] = useState(null);
 
-  // Sentinel Hub data states
-  const [sentinelImages, setSentinelImages] = useState({
-    trueColor: null,
-    ndvi: null,
-    savi: null,
-    moisture: null,
-    lai: null,
-  });
-  const [sentinelImageType, setSentinelImageType] = useState("trueColor");
+  // Sentinel Hub data states (stats and history only - images handled by SatelliteImagerySection)
   const [sentinelLoading, setSentinelLoading] = useState(false);
   const [sentinelStats, setSentinelStats] = useState(null);
   const [sentinelHistory, setSentinelHistory] = useState({
@@ -429,6 +417,8 @@ const FarmDetailsPage = () => {
     moisture: [],
     lai: [],
   });
+  // Farm coordinates for satellite imagery component
+  const [farmCoords, setFarmCoords] = useState(null);
   const [activeCycle, setActiveCycle] = useState(null);
   const [cycleMilestones, setCycleMilestones] = useState([]);
   const [availableCrops, setAvailableCrops] = useState([]);
@@ -562,9 +552,10 @@ const FarmDetailsPage = () => {
 
           // --- Fetch Sentinel Hub data ---
           // Get coordinates from either new PostGIS boundary or deprecated location_data
-          const farmCoords = getFarmCoordinates(farmData);
-          if (farmCoords && farmCoords.length > 0) {
-            fetchSentinelData(farmCoords);
+          const coords = getFarmCoordinates(farmData);
+          if (coords && coords.length > 0) {
+            setFarmCoords(coords); // Store for SatelliteImagerySection
+            fetchSentinelData(coords);
           }
         } else {
           // If the farm isn't registered with AgroMonitoring, we can't fetch this data.
@@ -573,9 +564,10 @@ const FarmDetailsPage = () => {
           );
 
           // But we can still try Sentinel Hub if we have coordinates
-          const farmCoords = getFarmCoordinates(farmData);
-          if (farmCoords && farmCoords.length > 0) {
-            fetchSentinelData(farmCoords);
+          const coords = getFarmCoordinates(farmData);
+          if (coords && coords.length > 0) {
+            setFarmCoords(coords); // Store for SatelliteImagerySection
+            fetchSentinelData(coords);
           }
         }
         // --- END OF FIX ---
@@ -590,54 +582,30 @@ const FarmDetailsPage = () => {
     fetchFarmData();
   }, [farmId]);
 
-  // Function to fetch Sentinel Hub satellite imagery
+  // Function to fetch Sentinel Hub vegetation stats and history
+  // (Image fetching is now handled by SatelliteImagerySection component)
   const fetchSentinelData = async (coords) => {
     setSentinelLoading(true);
     try {
-      const sentinelResults = await Promise.allSettled([
-        getSentinelTrueColor(coords),
-        getSentinelNDVI(coords),
-        getSentinelSAVI(coords),
-        getSentinelMoisture(coords),
-        getSentinelLAI(coords),
+      const [statsResult, historyResult] = await Promise.allSettled([
         getVegetationStats(coords),
         getVegetationHistory(coords, 60), // Get 60 days of history
       ]);
 
-      const imageTypes = ["trueColor", "ndvi", "savi", "moisture", "lai"];
-      const newImages = { ...sentinelImages };
-
-      sentinelResults.slice(0, 5).forEach((result, index) => {
-        if (result.status === "fulfilled") {
-          console.log(`Sentinel ${imageTypes[index]} fetched successfully`);
-          newImages[imageTypes[index]] = result.value;
-        } else {
-          console.error(`Sentinel ${imageTypes[index]} failed:`, result.reason);
-        }
-      });
-
-      setSentinelImages(newImages);
-
-      // Handle vegetation stats (index 5)
-      if (sentinelResults[5].status === "fulfilled") {
-        console.log(
-          "Sentinel vegetation stats fetched:",
-          sentinelResults[5].value
-        );
-        setSentinelStats(sentinelResults[5].value);
+      // Handle vegetation stats
+      if (statsResult.status === "fulfilled") {
+        console.log("Sentinel vegetation stats fetched:", statsResult.value);
+        setSentinelStats(statsResult.value);
       } else {
-        console.error("Sentinel stats failed:", sentinelResults[5].reason);
+        console.error("Sentinel stats failed:", statsResult.reason);
       }
 
-      // Handle vegetation history (index 6)
-      if (sentinelResults[6].status === "fulfilled") {
-        console.log(
-          "Sentinel vegetation history fetched:",
-          sentinelResults[6].value
-        );
-        setSentinelHistory(sentinelResults[6].value);
+      // Handle vegetation history
+      if (historyResult.status === "fulfilled") {
+        console.log("Sentinel vegetation history fetched:", historyResult.value);
+        setSentinelHistory(historyResult.value);
       } else {
-        console.error("Sentinel history failed:", sentinelResults[6].reason);
+        console.error("Sentinel history failed:", historyResult.reason);
       }
     } catch (error) {
       console.error("Error fetching Sentinel data:", error);
@@ -862,9 +830,8 @@ const FarmDetailsPage = () => {
                           </option>
                         </select>
                         <span
-                          className={`verified-badge ${
-                            isVerifiedStatus(ms.status) ? "verified" : ""
-                          }`}
+                          className={`verified-badge ${isVerifiedStatus(ms.status) ? "verified" : ""
+                            }`}
                         >
                           {isVerifiedStatus(ms.status)
                             ? "Verified"
@@ -976,15 +943,15 @@ const FarmDetailsPage = () => {
                         sentinelStats.ndvi.mean > 0.5
                           ? "#22c55e"
                           : sentinelStats.ndvi.mean > 0.3
-                          ? "#eab308"
-                          : "#ef4444",
+                            ? "#eab308"
+                            : "#ef4444",
                     }}
                   >
                     {sentinelStats.ndvi.mean > 0.5
                       ? "Healthy"
                       : sentinelStats.ndvi.mean > 0.3
-                      ? "Moderate"
-                      : "Low"}
+                        ? "Moderate"
+                        : "Low"}
                   </span>
                 </div>
                 <p className="veg-description">Vegetation Health Index</p>
@@ -1018,15 +985,15 @@ const FarmDetailsPage = () => {
                         sentinelStats.lai.mean > 3
                           ? "#22c55e"
                           : sentinelStats.lai.mean > 1.5
-                          ? "#eab308"
-                          : "#ef4444",
+                            ? "#eab308"
+                            : "#ef4444",
                     }}
                   >
                     {sentinelStats.lai.mean > 3
                       ? "Dense"
                       : sentinelStats.lai.mean > 1.5
-                      ? "Growing"
-                      : "Sparse"}
+                        ? "Growing"
+                        : "Sparse"}
                   </span>
                 </div>
                 <p className="veg-description">Leaf Area Index</p>
@@ -1068,12 +1035,12 @@ const FarmDetailsPage = () => {
                       {uvi.uvi <= 2
                         ? "Low"
                         : uvi.uvi <= 5
-                        ? "Moderate"
-                        : uvi.uvi <= 7
-                        ? "High"
-                        : uvi.uvi <= 10
-                        ? "Very High"
-                        : "Extreme"}
+                          ? "Moderate"
+                          : uvi.uvi <= 7
+                            ? "High"
+                            : uvi.uvi <= 10
+                              ? "Very High"
+                              : "Extreme"}
                     </p>
                   </div>
                 </div>
@@ -1156,15 +1123,15 @@ const FarmDetailsPage = () => {
                         sentinelStats.savi.mean > 0.4
                           ? "#22c55e"
                           : sentinelStats.savi.mean > 0.2
-                          ? "#eab308"
-                          : "#ef4444",
+                            ? "#eab308"
+                            : "#ef4444",
                     }}
                   >
                     {sentinelStats.savi.mean > 0.4
                       ? "Good"
                       : sentinelStats.savi.mean > 0.2
-                      ? "Fair"
-                      : "Poor"}
+                        ? "Fair"
+                        : "Poor"}
                   </span>
                 </div>
                 <p className="veg-description">Soil-Adjusted Vegetation</p>
@@ -1186,7 +1153,7 @@ const FarmDetailsPage = () => {
           <div className="data-card moisture-card">
             <h3>Plant Moisture</h3>
             {sentinelStats?.moisture &&
-            isValidNumber(sentinelStats.moisture.mean) ? (
+              isValidNumber(sentinelStats.moisture.mean) ? (
               <div className="vegetation-stat-content">
                 <div className="vegetation-main-value">
                   <span className="veg-value">
@@ -1199,15 +1166,15 @@ const FarmDetailsPage = () => {
                         sentinelStats.moisture.mean > 0.1
                           ? "#3b82f6"
                           : sentinelStats.moisture.mean > -0.1
-                          ? "#eab308"
-                          : "#ef4444",
+                            ? "#eab308"
+                            : "#ef4444",
                     }}
                   >
                     {sentinelStats.moisture.mean > 0.1
                       ? "Adequate"
                       : sentinelStats.moisture.mean > -0.1
-                      ? "Normal"
-                      : "Dry"}
+                        ? "Normal"
+                        : "Dry"}
                   </span>
                 </div>
                 <p className="veg-description">NDMI Water Stress Index</p>
@@ -1393,76 +1360,8 @@ const FarmDetailsPage = () => {
             )}
           </div>
 
-          {/* Sentinel Hub Satellite Imagery Card */}
-          <div className="data-card image-card sentinel-card">
-            <div className="image-header">
-              <h3>Sentinel-2 Satellite Imagery</h3>
-              <div className="image-toggle sentinel-toggle">
-                <button
-                  onClick={() => setSentinelImageType("trueColor")}
-                  className={sentinelImageType === "trueColor" ? "active" : ""}
-                >
-                  True Color
-                </button>
-                <button
-                  onClick={() => setSentinelImageType("ndvi")}
-                  className={sentinelImageType === "ndvi" ? "active" : ""}
-                >
-                  NDVI
-                </button>
-                <button
-                  onClick={() => setSentinelImageType("savi")}
-                  className={sentinelImageType === "savi" ? "active" : ""}
-                >
-                  SAVI
-                </button>
-                <button
-                  onClick={() => setSentinelImageType("moisture")}
-                  className={sentinelImageType === "moisture" ? "active" : ""}
-                >
-                  Moisture
-                </button>
-                <button
-                  onClick={() => setSentinelImageType("lai")}
-                  className={sentinelImageType === "lai" ? "active" : ""}
-                >
-                  LAI
-                </button>
-              </div>
-            </div>
-            <p className="card-subtitle sentinel-subtitle">
-              {sentinelImageType === "trueColor" &&
-                "Natural color satellite view"}
-              {sentinelImageType === "ndvi" &&
-                "Vegetation health index (green = healthy)"}
-              {sentinelImageType === "savi" &&
-                "Soil-adjusted vegetation - better for sparse crops"}
-              {sentinelImageType === "moisture" &&
-                "Plant water stress (blue = wet, red = dry)"}
-              {sentinelImageType === "lai" &&
-                "Leaf Area Index - crop growth indicator"}
-            </p>
-            {sentinelLoading ? (
-              <div className="satellite-placeholder">
-                <div className="loader"></div>
-                <p>Loading Sentinel-2 imagery...</p>
-              </div>
-            ) : sentinelImages[sentinelImageType] ? (
-              <img
-                src={sentinelImages[sentinelImageType]}
-                alt={`Sentinel ${sentinelImageType} view`}
-                className="satellite-image"
-              />
-            ) : (
-              <div className="satellite-placeholder">
-                <span className="material-symbols-outlined">satellite_alt</span>
-                <p>
-                  Sentinel imagery unavailable. Configure Sentinel Hub
-                  credentials.
-                </p>
-              </div>
-            )}
-          </div>
+          {/* Sentinel Hub Satellite Imagery - Interactive Map */}
+          <SatelliteImagerySection farmId={farmId} coords={farmCoords} />
         </div>
       </main>
       <Modal
