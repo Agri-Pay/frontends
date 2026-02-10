@@ -242,9 +242,7 @@ import {
 import {
   getVegetationStats,
   getVegetationHistory,
-  getAvailableDates,
 } from "./sentinelhub";
-import { publishSatelliteTelemetry } from "./thingsboard";
 import DroneImagerySection from "./DroneImagerySection";
 import SatelliteImagerySection from "./SatelliteImagerySection";
 import IoTSensorSection from "./IoTSensorSection";
@@ -586,33 +584,19 @@ const FarmDetailsPage = () => {
   }, [farmId]);
 
   // Function to fetch Sentinel Hub vegetation stats and history
-  // Also publishes to ThingsBoard virtual sensor if cloud cover is low
+  // Publishing now handled by scheduled satellite-data-scheduler
   const fetchSentinelData = async (coords) => {
     setSentinelLoading(true);
     try {
-      const [statsResult, historyResult, datesResult] = await Promise.allSettled([
+      const [statsResult, historyResult] = await Promise.allSettled([
         getVegetationStats(coords),
         getVegetationHistory(coords, 60), // Get 60 days of history
-        getAvailableDates(coords, 30), // Get available dates with cloud cover
       ]);
 
       // Handle vegetation stats
       if (statsResult.status === "fulfilled") {
         console.log("Sentinel vegetation stats fetched:", statsResult.value);
         setSentinelStats(statsResult.value);
-
-        // Try to publish to virtual sensor if we have good data
-        if (datesResult.status === "fulfilled" && datesResult.value?.dates?.length > 0) {
-          const bestDate = datesResult.value.dates[0]; // Most recent date
-          // Publish silently - no notification needed
-          publishSatelliteTelemetry(farmId, statsResult.value, bestDate)
-            .then((published) => {
-              if (published) {
-                console.log("Published satellite data to virtual sensor");
-              }
-            })
-            .catch((err) => console.error("Failed to publish satellite data:", err));
-        }
       } else {
         console.error("Sentinel stats failed:", statsResult.reason);
       }

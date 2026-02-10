@@ -1,0 +1,35 @@
+name: Publish Satellite Data
+
+# Runs daily at 6am UTC (11am Pakistan time)
+# Also allows manual triggering for testing
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6am UTC
+  workflow_dispatch:     # Manual trigger button
+
+jobs:
+  publish-satellite-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger Satellite Data Scheduler
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
+            ${{ secrets.SUPABASE_URL }}/functions/v1/satellite-data-scheduler)
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Scheduler returned non-200 status code"
+            exit 1
+          fi
+      
+      - name: Log Results
+        if: always()
+        run: |
+          echo "Satellite data publishing job completed"
