@@ -17,6 +17,7 @@ import ReportsPage from "./reports";
 import FarmReportsPage from "./farmreports";
 import PaymentsPage from "./payments";
 import FarmPaymentsPage from "./farmpayments";
+import SettingsPage from "./settings";
 
 function App() {
   return (
@@ -145,6 +146,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <FarmPaymentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
               </ProtectedRoute>
             }
           />

@@ -1,0 +1,345 @@
+/* Settings Page Styles */
+
+.settings-page {
+    max-width: 720px;
+}
+
+/* --- Header --- */
+.settings-header {
+    margin-bottom: 2rem;
+}
+
+.settings-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.25rem 0;
+}
+
+.settings-subtitle {
+    font-size: 0.95rem;
+    color: #64748b;
+    margin: 0;
+}
+
+/* --- Section --- */
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.section-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+}
+
+.section-heading p {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin: 0.15rem 0 0 0;
+}
+
+.section-icon {
+    font-size: 1.4rem;
+    color: #4cdf20;
+    background: #f0fdf4;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    margin-top: 0.1rem;
+}
+
+/* --- Card --- */
+.settings-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.settings-card:last-child {
+    margin-bottom: 0;
+}
+
+/* --- Form Fields --- */
+.settings-field {
+    margin-bottom: 1.25rem;
+}
+
+.settings-field:last-child {
+    margin-bottom: 0;
+}
+
+.settings-field label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.4rem;
+}
+
+.settings-field input {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    color: #1e293b;
+    background: #ffffff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.settings-field input:focus {
+    outline: none;
+    border-color: #4cdf20;
+    box-shadow: 0 0 0 3px rgba(76, 223, 32, 0.12);
+}
+
+.settings-field input.disabled-input {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+    border-color: #f1f5f9;
+}
+
+.field-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.3rem;
+}
+
+.field-error {
+    display: block;
+    font-size: 0.75rem;
+    color: #ef4444;
+    margin-top: 0.3rem;
+}
+
+.field-success {
+    display: block;
+    font-size: 0.75rem;
+    color: #22c55e;
+    margin-top: 0.3rem;
+}
+
+/* --- Role Badge --- */
+.role-badge-container {
+    margin-top: 0.25rem;
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.role-badge .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+.role-badge.farmer {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+.role-badge.admin {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+/* --- Action Buttons --- */
+.settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.25rem;
+    background: linear-gradient(135deg, #4cdf20 0%, #38a815 100%);
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(76, 223, 32, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 223, 32, 0.35);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.25rem;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background: #e2e8f0;
+}
+
+.btn-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.25rem;
+    background: transparent;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-outline .material-symbols-outlined {
+    font-size: 1.1rem;
+}
+
+.btn-outline:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.25rem;
+    background: transparent;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-danger .material-symbols-outlined {
+    font-size: 1.1rem;
+}
+
+.btn-danger:hover {
+    background: #fef2f2;
+    border-color: #ef4444;
+}
+
+/* --- Account Actions --- */
+.account-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.account-action-info h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 0.2rem 0;
+}
+
+.account-action-info p {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Danger Card */
+.danger-card {
+    border-color: #fecaca;
+    background: #fffbfb;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    .settings-page {
+        max-width: 100%;
+    }
+
+    .settings-title {
+        font-size: 1.75rem;
+    }
+
+    .settings-card {
+        padding: 1.25rem;
+    }
+
+    .account-action {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .btn-outline,
+    .btn-danger {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .settings-actions {
+        flex-direction: column-reverse;
+    }
+
+    .settings-actions .btn-primary,
+    .settings-actions .btn-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .settings-title {
+        font-size: 1.5rem;
+    }
+}
