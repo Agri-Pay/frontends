@@ -2,6 +2,8 @@
 .main-layout {
     display: flex;
     min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
 }
 
 .main-layout-content {
